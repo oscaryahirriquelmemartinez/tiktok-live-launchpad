@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tt-pink: #fe2c55;
+  --color-tt-cyan: #25f4ee;
+  --color-tt-bg: #121212;
+  --color-tt-card: #1c1c26;
+  --color-tt-sheet: #161823;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  background: #000;
+  color: #fff;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Scrollbars deshabilitadas globalmente */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Keyframes de la simulación ---- */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes kenburns {
+  0% { transform: scale(1) translate(0, 0); }
+  50% { transform: scale(1.1) translate(-1.5%, 1.5%); }
+  100% { transform: scale(1) translate(0, 0); }
+}
+@keyframes gradpan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.55); opacity: 0.65; }
+  100% { transform: scale(2); opacity: 0; }
+}
+@keyframes scanline {
+  0% { top: -30%; }
+  100% { top: 115%; }
+}
+@keyframes eqbar {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+@keyframes steam {
+  0% { transform: translateY(18px) scale(0.85); opacity: 0; }
+  35% { opacity: 0.5; }
+  100% { transform: translateY(-46px) scale(1.25); opacity: 0; }
+}
