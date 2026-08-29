@@ -205,3 +205,50 @@ export const COPILOT_ACTIONS: Record<CopilotCue["id"], { chat?: string; pin?: st
 
 export const LIVE_START_VIEWERS = 1847;
 export const GIFT_GOAL = 500;
+
+// ---------------------------------------------------------------------------
+// Copilot · cadencia relajada (una sugerencia cada ~17 s, la primera a los 7 s)
+// ---------------------------------------------------------------------------
+
+export const COPILOT_FIRST_DELAY_MS = 7000;
+export const COPILOT_INTERVAL_MS = 17000;
+
+// ---------------------------------------------------------------------------
+// Moderador de confianza · seguidores candidatos (Waiting Room)
+// ---------------------------------------------------------------------------
+
+export type ModCandidate = {
+  handle: string;
+  avatar: string;
+  hue: number;
+  meta: string;
+  badge?: string;
+};
+
+export const MOD_CANDIDATES: ModCandidate[] = [
+  {
+    handle: "mod_helper",
+    avatar: "🛡️",
+    hue: 205,
+    meta: "Te sigue hace 2 años · modera otros 3 canales",
+    badge: "Recomendado",
+  },
+  {
+    handle: "sofi.badilla",
+    avatar: "😄",
+    hue: 280,
+    meta: "Top fan · comenta en todos tus videos",
+  },
+  {
+    handle: "ferchef",
+    avatar: "🧑‍🍳",
+    hue: 100,
+    meta: "Creador de cocina · 12K seguidores",
+  },
+  {
+    handle: "el_tomi",
+    avatar: "🔥",
+    hue: 20,
+    meta: "Envió 3 regalos este mes",
+  },
+];

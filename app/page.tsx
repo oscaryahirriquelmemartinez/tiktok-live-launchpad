@@ -9,6 +9,7 @@ import { AudienceBridgeScreen } from "@/components/AudienceBridgeScreen";
 import { LiveRoomScreen, LiveStats } from "@/components/LiveRoomScreen";
 import { LiveSummaryScreen } from "@/components/LiveSummaryScreen";
 import { LIVE_START_VIEWERS, RunsheetFormat } from "@/lib/data";
+import { useLiveStore } from "@/lib/store";
 
 type Stage = "feed" | "runsheet" | "bridge" | "live" | "summary";
 
@@ -37,6 +38,7 @@ export default function Home() {
     setFormat(null);
     setStats(null);
     setStartViewers(LIVE_START_VIEWERS);
+    useLiveStore.getState().resetSession();
     go("feed", -1);
   };
 

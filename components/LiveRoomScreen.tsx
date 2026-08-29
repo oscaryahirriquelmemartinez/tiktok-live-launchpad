@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  BellOff,
   Gift,
   Heart,
   MoreHorizontal,
@@ -18,14 +19,13 @@ import {
   CHAT_SCRIPT,
   ChatEvent,
   COPILOT_ACTIONS,
-  COPILOT_CUES,
-  CopilotCue,
   CREATOR,
   GIFT_GOAL,
   RunsheetFormat,
 } from "@/lib/data";
 import { dots, mmss } from "@/lib/format";
-import { useInterval } from "@/lib/hooks";
+import { useCopilotMessages, useInterval } from "@/lib/hooks";
+import { useLiveStore } from "@/lib/store";
 
 export type LiveStats = {
   seconds: number;
@@ -49,8 +49,6 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [viewers, setViewers] = useState(startViewers);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [cue, setCue] = useState<CopilotCue | null>(null);
-  const [cueSeq, setCueSeq] = useState(0);
   const [pinned, setPinned] = useState<string | null>(null);
   const [question, setQuestion] = useState<{ user: string; text: string } | null>(null);
   const [goalAnnounced, setGoalAnnounced] = useState(format.id === "goal");
@@ -61,12 +59,22 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
   const [confetti, setConfetti] = useState(false);
   const [endConfirm, setEndConfirm] = useState(false);
   const [copilotDone, setCopilotDone] = useState(0);
+  const [muteNotice, setMuteNotice] = useState(false);
+
+  // Estado global persistido: categorías silenciadas del Copilot (opt-out)
+  const mutedCategories = useLiveStore((s) => s.mutedCategories);
+  const muteCategory = useLiveStore((s) => s.muteCategory);
+
+  // Copilot con cadencia relajada (~17 s) que respeta la lista negra
+  const { cue, cueSeq, dismiss } = useCopilotMessages({
+    muted: mutedCategories,
+    skip: { pin: !!pinned, goal: goalAnnounced },
+  });
 
   const clockRef = useRef(0);
   const idRef = useRef(0);
   const maxViewersRef = useRef(startViewers);
   const firedChat = useRef(new Set<number>());
-  const firedCues = useRef(new Set<number>());
   const chatBoxRef = useRef<HTMLDivElement>(null);
 
   const pushMessage = (ev: ChatEvent, creator = false) =>
@@ -79,7 +87,6 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
     const loopT = clockRef.current % CHAT_LOOP_SECONDS;
     if (loopT < prevLoop) {
       firedChat.current.clear();
-      firedCues.current.clear();
     }
 
     CHAT_SCRIPT.forEach((ev, i) => {
@@ -94,16 +101,6 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
             setTimeout(() => setGiftBanner(null), 3400);
           }
         }
-      }
-    });
-
-    COPILOT_CUES.forEach((c, i) => {
-      if (c.at <= loopT && !firedCues.current.has(i)) {
-        firedCues.current.add(i);
-        if (c.id === "pin" && pinned) return;
-        if (c.id === "goal" && goalAnnounced) return;
-        setCue(c);
-        setCueSeq((s) => s + 1);
       }
     });
   }, 250);
@@ -125,13 +122,6 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
     ]);
     setTimeout(() => setHearts((h) => h.filter((p) => p.id !== id)), 2500);
   }, 620);
-
-  // Auto-dismiss del cue si el creador no actúa
-  useEffect(() => {
-    if (!cue) return;
-    const t = setTimeout(() => setCue(null), 9000);
-    return () => clearTimeout(t);
-  }, [cue]);
 
   // Auto-scroll del chat
   useEffect(() => {
@@ -159,7 +149,16 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
     }
     if (cue.id === "welcome") setViewers((v) => v + 300);
     setCopilotDone((n) => n + 1);
-    setCue(null);
+    dismiss();
+  };
+
+  // Opt-out: silencia la categoría del cue actual por el resto de la sesión
+  const muteCue = () => {
+    if (!cue) return;
+    muteCategory(cue.id);
+    dismiss();
+    setMuteNotice(true);
+    setTimeout(() => setMuteNotice(false), 2600);
   };
 
   const finish = () =>
@@ -210,45 +209,119 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
         </div>
       </div>
 
-      {/* ---- Meta de regalos ---- */}
-      <AnimatePresence>
-        {goalAnnounced && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute inset-x-3 top-[100px] z-20 flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 backdrop-blur"
-          >
-            <span className="text-[14px]">🌹</span>
-            <div className="h-[7px] flex-1 overflow-hidden rounded-full bg-white/15">
-              <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-tt-pink to-[#ff7a9e]"
-                animate={{ width: `${rosesPct}%` }}
-                transition={{ type: "spring", damping: 20 }}
-              />
-            </div>
-            <span className="text-[11px] font-bold tabular-nums text-white/85">
-              {roses}/{GIFT_GOAL} · secreto 🤫
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* ---- Stack superior: Copilot (anclado arriba) + meta + fijado ---- */}
+      <div className="absolute inset-x-3 top-[94px] z-30 flex flex-col gap-2">
+        {/* LIVE Copilot: entra deslizándose desde arriba, sin tapar la cara */}
+        <AnimatePresence mode="popLayout">
+          {cue && (
+            <motion.div
+              key={`${cue.id}-${cueSeq}`}
+              initial={{ y: -28, opacity: 0, scale: 0.97 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: -18, opacity: 0, scale: 0.97 }}
+              transition={{ type: "spring", damping: 24, stiffness: 280 }}
+              className="rounded-2xl border border-tt-cyan/45 bg-[#0e0f16]/95 p-3 shadow-[0_0_28px_rgba(37,244,238,0.16)] backdrop-blur-md"
+            >
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <Sparkles size={13} className="text-tt-cyan" fill="#25f4ee" />
+                <span className="text-[10px] font-black tracking-[0.16em] text-tt-cyan">
+                  LIVE COPILOT
+                </span>
+                <span className="relative ml-0.5 flex size-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tt-cyan opacity-75" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-tt-cyan" />
+                </span>
+                <button
+                  onClick={muteCue}
+                  title="No volver a sugerir esto"
+                  className="ml-auto flex items-center gap-1 rounded-full bg-white/8 px-2 py-[3px] text-[10px] font-semibold text-white/45"
+                >
+                  <BellOff size={11} /> Silenciar
+                </button>
+                <button onClick={dismiss} className="text-white/40">
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="mb-2.5 flex items-start gap-2.5">
+                <span className="text-[22px] leading-none">{cue.icon}</span>
+                <div>
+                  <p className="text-[13.5px] font-bold leading-tight">{cue.title}</p>
+                  <p className="mt-0.5 text-[12px] leading-snug text-white/65">{cue.detail}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={runCueAction}
+                  className="h-8 rounded-full bg-tt-pink px-4 text-[12px] font-bold"
+                >
+                  {cue.action}
+                </motion.button>
+                <button onClick={dismiss} className="text-[12px] font-semibold text-white/45">
+                  Omitir
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* ---- Comentario fijado ---- */}
-      <AnimatePresence>
-        {pinned && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className={`absolute inset-x-3 z-20 flex items-start gap-2 rounded-xl border border-tt-cyan/30 bg-black/55 p-2.5 backdrop-blur ${
-              goalAnnounced ? "top-[136px]" : "top-[100px]"
-            }`}
-          >
-            <Pin size={13} className="mt-[2px] shrink-0 text-tt-cyan" fill="#25f4ee" />
-            <p className="text-[12px] font-semibold leading-snug">{pinned}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* Confirmación de opt-out */}
+        <AnimatePresence>
+          {muteNotice && (
+            <motion.div
+              initial={{ y: -12, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-2 self-center rounded-full bg-black/60 px-3.5 py-1.5 backdrop-blur"
+            >
+              <BellOff size={12} className="text-tt-cyan" />
+              <span className="text-[11.5px] font-semibold text-white/80">
+                Listo, no verás más sugerencias de este tipo
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Meta de regalos */}
+        <AnimatePresence>
+          {goalAnnounced && (
+            <motion.div
+              layout
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 backdrop-blur"
+            >
+              <span className="text-[14px]">🌹</span>
+              <div className="h-[7px] flex-1 overflow-hidden rounded-full bg-white/15">
+                <motion.div
+                  className="h-full rounded-full bg-gradient-to-r from-tt-pink to-[#ff7a9e]"
+                  animate={{ width: `${rosesPct}%` }}
+                  transition={{ type: "spring", damping: 20 }}
+                />
+              </div>
+              <span className="text-[11px] font-bold tabular-nums text-white/85">
+                {roses}/{GIFT_GOAL} · secreto 🤫
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Comentario fijado */}
+        <AnimatePresence>
+          {pinned && (
+            <motion.div
+              layout
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex items-start gap-2 rounded-xl border border-tt-cyan/30 bg-black/55 p-2.5 backdrop-blur"
+            >
+              <Pin size={13} className="mt-[2px] shrink-0 text-tt-cyan" fill="#25f4ee" />
+              <p className="text-[12px] font-semibold leading-snug">{pinned}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* ---- Banner de regalo grande ---- */}
       <AnimatePresence>
@@ -258,7 +331,7 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 320, opacity: 0 }}
             transition={{ type: "spring", damping: 18 }}
-            className="absolute left-3 top-[190px] z-20 flex items-center gap-2 rounded-full bg-gradient-to-r from-tt-pink/85 to-[#7a2bfe]/85 py-1.5 pl-1.5 pr-4 backdrop-blur"
+            className="absolute left-3 top-[248px] z-20 flex items-center gap-2 rounded-full bg-gradient-to-r from-tt-pink/85 to-[#7a2bfe]/85 py-1.5 pl-1.5 pr-4 backdrop-blur"
           >
             <Avatar emoji={giftBanner.avatar} hue={giftBanner.hue} size={28} />
             <div className="leading-tight">
@@ -282,7 +355,7 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.94 }}
-            className="absolute left-1/2 top-[240px] z-20 w-[78%] -translate-x-1/2 rounded-2xl border border-tt-cyan/40 bg-black/70 p-3.5 text-center backdrop-blur-md"
+            className="absolute left-1/2 top-[300px] z-20 w-[78%] -translate-x-1/2 rounded-2xl border border-tt-cyan/40 bg-black/70 p-3.5 text-center backdrop-blur-md"
           >
             <p className="mb-1 text-[10px] font-black tracking-[0.16em] text-tt-cyan">
               PREGUNTA DESTACADA
@@ -314,55 +387,6 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
           ))}
         </div>
       )}
-
-      {/* ---- LIVE Copilot ---- */}
-      <div className="absolute inset-x-3 bottom-[315px] z-30">
-        <AnimatePresence mode="popLayout">
-          {cue && (
-            <motion.div
-              key={`${cue.id}-${cueSeq}`}
-              initial={{ y: 26, opacity: 0, scale: 0.95 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: -14, opacity: 0, scale: 0.97 }}
-              transition={{ type: "spring", damping: 22, stiffness: 300 }}
-              className="rounded-2xl border border-tt-cyan/45 bg-[#0e0f16]/95 p-3 shadow-[0_0_28px_rgba(37,244,238,0.16)] backdrop-blur-md"
-            >
-              <div className="mb-1.5 flex items-center gap-1.5">
-                <Sparkles size={13} className="text-tt-cyan" fill="#25f4ee" />
-                <span className="text-[10px] font-black tracking-[0.16em] text-tt-cyan">
-                  LIVE COPILOT
-                </span>
-                <span className="relative ml-0.5 flex size-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tt-cyan opacity-75" />
-                  <span className="relative inline-flex size-1.5 rounded-full bg-tt-cyan" />
-                </span>
-                <button onClick={() => setCue(null)} className="ml-auto text-white/40">
-                  <X size={15} />
-                </button>
-              </div>
-              <div className="mb-2.5 flex items-start gap-2.5">
-                <span className="text-[22px] leading-none">{cue.icon}</span>
-                <div>
-                  <p className="text-[13.5px] font-bold leading-tight">{cue.title}</p>
-                  <p className="mt-0.5 text-[12px] leading-snug text-white/65">{cue.detail}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={runCueAction}
-                  className="h-8 rounded-full bg-tt-pink px-4 text-[12px] font-bold"
-                >
-                  {cue.action}
-                </motion.button>
-                <button onClick={() => setCue(null)} className="text-[12px] font-semibold text-white/45">
-                  Omitir
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
 
       {/* ---- Chat ---- */}
       <div

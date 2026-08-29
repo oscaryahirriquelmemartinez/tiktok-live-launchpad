@@ -3,10 +3,11 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { motion } from "framer-motion";
-import { Clock3, Gem, UserPlus, UsersRound } from "lucide-react";
+import { BellRing, Clock3, Gem, ShieldCheck, UserPlus, UsersRound } from "lucide-react";
 import { Avatar, StatusBar } from "@/components/chrome";
 import { CREATOR } from "@/lib/data";
 import { dots, mmss } from "@/lib/format";
+import { useLiveStore } from "@/lib/store";
 import type { LiveStats } from "@/components/LiveRoomScreen";
 
 type Props = {
@@ -15,6 +16,9 @@ type Props = {
 };
 
 export function LiveSummaryScreen({ stats, onRestart }: Props) {
+  const moderator = useLiveStore((s) => s.moderator);
+  const moderatorPinned = useLiveStore((s) => s.moderatorPinned);
+  const setModeratorPinned = useLiveStore((s) => s.setModeratorPinned);
   const cards = [
     { icon: <Clock3 size={16} />, label: "Duración", value: mmss(stats.seconds) },
     { icon: <UsersRound size={16} />, label: "Espectadores máx.", value: dots(stats.maxViewers) },
@@ -66,11 +70,57 @@ export function LiveSummaryScreen({ stats, onRestart }: Props) {
         ))}
       </div>
 
+      {/* Fijar moderador de confianza para futuros LIVEs */}
+      {moderator && (
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65 }}
+          className="mt-4 w-full rounded-2xl border border-tt-cyan/30 bg-tt-cyan/8 p-3.5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="relative shrink-0">
+              <Avatar emoji={moderator.avatar} hue={moderator.hue} size={40} />
+              <span className="absolute -bottom-1 -right-1 flex size-[17px] items-center justify-center rounded-full bg-tt-cyan">
+                <ShieldCheck size={11} className="text-black" />
+              </span>
+            </div>
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="text-[12.5px] font-bold leading-snug">
+                Fijar a @{moderator.handle} como moderador de confianza
+              </p>
+              <p className="mt-0.5 flex items-center gap-1 text-[11px] text-white/55">
+                {moderatorPinned ? (
+                  <>
+                    <BellRing size={11} className="text-tt-cyan" /> Le avisaremos en
+                    tus futuros LIVEs
+                  </>
+                ) : (
+                  "Te ayudó hoy · notifícale tus futuros LIVEs"
+                )}
+              </p>
+            </div>
+            <button
+              onClick={() => setModeratorPinned(!moderatorPinned)}
+              className={`flex h-[28px] w-[48px] shrink-0 items-center rounded-full p-[3px] transition-colors ${
+                moderatorPinned ? "justify-end bg-tt-cyan" : "justify-start bg-white/20"
+              }`}
+            >
+              <motion.span
+                layout
+                transition={{ type: "spring", damping: 26, stiffness: 500 }}
+                className="block size-[22px] rounded-full bg-white shadow-md"
+              />
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8 }}
-        className="mt-5 rounded-full bg-white/8 px-4 py-2 text-center text-[12px] text-white/70"
+        className="mt-4 rounded-full bg-white/8 px-4 py-2 text-center text-[12px] text-white/70"
       >
         📌 Mejor momento: cuando fijaste la receta · retención +38%
       </motion.p>
