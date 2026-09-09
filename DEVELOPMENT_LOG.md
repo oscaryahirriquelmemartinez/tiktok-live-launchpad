@@ -1,105 +1,105 @@
-# LIVE Launchpad — Development Log & Build Record
+# LIVE Launchpad — Build Log
 
-This document records the chronological engineering history of LIVE
-Launchpad: architectural decisions, AI-assisted development phases, and
-the prompts used to drive each phase. It is intended as an internal
-build log, complementary to `PRD.md` (scope/requirements) and
-`CHANGELOG.md` (user-facing change history).
+This is our running log of how we actually built this thing — what we
+did in what order, what broke, what we decided to punt on, and the
+prompts we used when we were pairing with AI tooling to move faster.
+Think of it as the internal build diary that sits next to `PRD.md`
+(what we're building and why) and `CHANGELOG.md` (what changed for
+users).
 
-> **Note on methodology:** Several phases of this build used AI pair-
-> programming (Devin CLI, model: Claude Sonnet) in a **Rapid UI/UX
-> Prototyping** loop — short iterative cycles of prompt → generated
-> component → visual review → refinement — rather than a traditional
-> up-front spec-to-implementation waterfall. This is documented
-> transparently below as **Heuristic Interface Synchronization**: each
-> visual/interaction pass was validated against the target TikTok LIVE
-> interaction model and corrected iteratively, rather than derived from a
-> static design spec. This approach was deliberately chosen for a
-> hackathon timeline where interaction feel (motion timing, information
-> density, overlay choreography) could not be fully specified up front.
+> **A note on how we actually worked:** a good chunk of this build
+> happened as fast prompt → generated component → look at it → fix it
+> loops with AI pair-programming (Devin CLI, Claude Sonnet), not as a
+> spec-first waterfall. Some people call that "vibecoding" and mean it
+> as an insult — we just call it building fast under a hackathon clock.
+> We're writing it down honestly here: several of the interaction
+> decisions (motion timing, how dense the UI feels, how overlays stack)
+> got figured out by building something, looking at it, and immediately
+> deciding it was wrong, rather than being spec'd out ahead of time.
+> That's just what a real timebox looks like.
 
 ---
 
-## Phase 0 — Repository Initialization
+## Phase 0 — Getting something on screen
 
 **Commit `4347778` — "Initial commit: Live Launchpad MVP"**
 
-Scaffolded via `create-next-app` (Next.js 16, App Router, Turbopack,
-TypeScript, Tailwind CSS v4, ESLint). Established the mobile-first shell
-(`app/layout.tsx`: fixed `max-w-[400px]` viewport, disabled overscroll and
-text selection to emulate a native app surface) and the core design
-tokens (`app/globals.css`: `tt-pink`, `tt-cyan`, `tt-bg` custom theme
-colors matching TikTok's brand palette).
+Started from `create-next-app` (Next.js 16, App Router, Turbopack,
+TypeScript, Tailwind v4, ESLint) and built the phone-shaped shell first —
+`app/layout.tsx` locks the viewport to `max-w-[400px]`, kills overscroll
+and text selection so it stops feeling like a website and starts feeling
+like an app. Grabbed TikTok's brand colors as Tailwind theme tokens
+(`tt-pink`, `tt-cyan`, `tt-bg` in `app/globals.css`) early so every screen
+after this would automatically look consistent.
 
-Delivered in this phase:
-- `components/chrome.tsx` — shared primitives (`StatusBar`, `Avatar`,
-  `VideoBackdrop`) reused across every screen.
-- `components/ForYouScreen.tsx` — the "For You" feed entry point, with
-  live-incrementing engagement counters as a baseline virality cue.
-- `components/SpikePromptModal.tsx` — the initial Spike Prompt bottom
-  sheet.
-- `components/RunsheetScreen.tsx` — runsheet analysis/selection screen,
-  initially backed entirely by static mocks (`lib/data.ts`).
-- `components/AudienceBridgeScreen.tsx` — Waiting Room with viewer ramp
-  simulation and moderator selection sheet.
-- `components/LiveRoomScreen.tsx` — LIVE broadcast screen with a
-  fixed, looping scripted chat (`CHAT_SCRIPT`, 24 entries, 46-second
-  loop), gifting, and a first version of the LIVE Copilot.
-- `components/LiveSummaryScreen.tsx` — Post-LIVE recap screen.
-- `lib/data.ts`, `lib/format.ts`, `lib/hooks.ts`, `lib/store.ts` — mock
-  data, deterministic number formatting, animation/timer hooks, and
-  Zustand-backed session persistence.
+What actually shipped in this pass:
+- `components/chrome.tsx` — the boring-but-necessary shared bits
+  (`StatusBar`, `Avatar`, `VideoBackdrop`) every screen reuses.
+- `components/ForYouScreen.tsx` — the feed itself, with counters that
+  tick up live so it doesn't feel static from frame one.
+- `components/SpikePromptModal.tsx` — the first version of the spike
+  bottom-sheet.
+- `components/RunsheetScreen.tsx` — the format picker, fully mocked at
+  this point (`lib/data.ts`).
+- `components/AudienceBridgeScreen.tsx` — the waiting room, with the
+  viewer ramp and moderator picker.
+- `components/LiveRoomScreen.tsx` — the LIVE room, running off a fixed
+  24-message script that looped every 46 seconds, plus the first cut of
+  the Copilot.
+- `components/LiveSummaryScreen.tsx` — the recap screen.
+- `lib/data.ts`, `lib/format.ts`, `lib/hooks.ts`, `lib/store.ts` — mocks,
+  number formatting, timers/animation hooks, and the Zustand session
+  store.
 
-**Attributed prompt (paraphrased, Rapid UI/UX Prototyping):**
-> "Build a mobile-first Next.js simulation of the TikTok app that walks a
-> creator from a viral short-video spike into their first LIVE. Stages:
-> For You feed → spike detection prompt → AI-style runsheet picker →
-> audience waiting room → LIVE room with a chat/gift simulation and an
-> in-room Copilot → post-LIVE summary. Use Tailwind, Framer Motion, and
-> Zustand for state. No real backend — everything mocked."
+**What we actually asked the AI to build (paraphrased):**
+> "Build a mobile-first Next.js simulation of the TikTok app that walks
+> a creator from a viral short-video spike into their first LIVE.
+> Stages: For You feed → spike detection prompt → AI-style runsheet
+> picker → audience waiting room → LIVE room with a chat/gift simulation
+> and an in-room Copilot → post-LIVE summary. Use Tailwind, Framer
+> Motion, and Zustand for state. No real backend — everything mocked."
 
 ---
 
-## Phase 1 — Tooling
+## Phase 1 — Making our own lives easier
 
 **Commit `d592fab` — "Add auto-push watcher script"**
 
-Added `scripts/auto-push.sh` and the `npm run autopush` convenience
-script to reduce manual git friction during the rapid-iteration phase of
-the hackathon build.
+Added `scripts/auto-push.sh` and `npm run autopush` so we'd stop
+manually running git commands every five minutes during the crunch.
+Small, but it saved real time.
 
 ---
 
-## Phase 2 — Copilot v2: Placement, Cadence, Opt-Out, Moderator, Expectations
+## Phase 2 — Fixing the Copilot after actually using it
 
 **Commit `170a9d8` — "Copilot v2: reubicación superior, cadencia
 relajada, opt-out, moderador de confianza y expectativas"**
 
-This phase converted four pieces of product feedback into shipped
-behavior:
+We ran through the flow ourselves a few times and had a pretty short
+list of "this is actively annoying" notes. This commit is us fixing all
+of them in one pass:
 
-1. **Copilot repositioning.** Moved the LIVE Copilot card from its
-   original placement to a fixed slot directly beneath the room header
-   (`top-[94px]`), so suggestions never obscure the creator's face on
-   camera — a direct response to usability feedback that the initial
-   placement felt intrusive.
-2. **Cadence relaxation.** Replaced an aggressive suggestion cadence with
-   a first cue at 7s and a steady-state interval of ~17s
+1. **Moved the Copilot.** It used to sit somewhere it covered the
+   creator's face on camera — obviously bad — so we pinned it right
+   under the room header instead (`top-[94px]`).
+2. **Slowed it down.** It used to fire way too often. Now it's a 7-second
+   first delay and roughly 17 seconds after that
    (`COPILOT_FIRST_DELAY_MS`, `COPILOT_INTERVAL_MS` in `lib/data.ts`),
-   plus a 9-second auto-dismiss, to reduce notification fatigue.
-3. **Per-category opt-out.** Added a persistent "Silence this" action
-   (`muteCategory` in `lib/store.ts`) so a dismissed suggestion type never
-   resurfaces for the rest of the session.
-4. **Trusted Moderator selection + Post-LIVE pinning.** Added the
-   moderator-candidate bottom sheet in the Waiting Room
-   (`AudienceBridgeScreen.tsx`) and the "pin for future LIVEs" toggle in
-   the Post-LIVE recap (`LiveSummaryScreen.tsx`), both backed by
-   `lib/store.ts`.
-5. **Waiting Room expectation-setting.** Added the "an estimated portion
-   of concurrent viewers may join" banner to reduce surprise around
-   notified-audience variance.
+   with a 9-second auto-dismiss if nobody interacts.
+3. **Added a real mute button.** "Silence this" (`muteCategory` in
+   `lib/store.ts`) means that suggestion type just doesn't come back for
+   the rest of the session. Nobody should have to keep dismissing the
+   same nag.
+4. **Added the moderator flow, both ends.** Picking a trusted moderator
+   in the waiting room (`AudienceBridgeScreen.tsx`) and pinning them for
+   next time from the recap screen (`LiveSummaryScreen.tsx`), both saved
+   through `lib/store.ts`.
+5. **Added the expectations banner in the waiting room.** We didn't want
+   the "X people notified" number to read like a promise, so we added
+   the "an estimated portion may join" framing.
 
-**Attributed prompt (paraphrased, Heuristic Interface Synchronization):**
+**What we asked for (paraphrased):**
 > "The Copilot currently covers the creator's face and fires too often.
 > Move it to the top of the room, relax the suggestion cadence, and let
 > the creator permanently silence a suggestion category. Also add a way
@@ -110,44 +110,43 @@ behavior:
 
 ---
 
-## Phase 3 — Production Sprint: Generative Runsheets, God Mode, Layout Hardening
+## Phase 3 — The "let's make this feel real" sprint
 
-*(Uncommitted at time of writing; staged for the next commit.)*
+*(Not committed yet as of this writing — staged, ready to go.)*
 
-This phase focused on three independent, non-overlapping workstreams
-executed in a single session:
+Three separate things, done back to back in one session, none of which
+touched each other:
 
-### 3.1 Layout hardening (z-index collision fix)
-The large gift banner and the highlighted-question overlay in
-`LiveRoomScreen.tsx` previously used hardcoded absolute offsets
-(`top-[248px]`, `top-[300px]`) that could visually collide with the
-Copilot/goal/pinned-comment stack above them under specific state
-combinations. Both overlays were migrated into the existing flex-column
-stack (`top-[94px]`), with Framer Motion `layout` animating the reflow
-when overlays enter or exit. This removed an entire class of
-positioning bugs without introducing any additional render cost.
+### 3.1 Fixing overlapping UI (the z-index mess)
+The big gift banner and the highlighted-question card in
+`LiveRoomScreen.tsx` used to sit at hardcoded pixel offsets
+(`top-[248px]`, `top-[300px]`). Under the wrong combination of state —
+say, a big gift landing right when a question was already highlighted —
+they'd visually stack on top of each other. We moved both into the same
+flex stack the Copilot already lived in (`top-[94px]`) and let Framer
+Motion's `layout` prop handle the reflow. Whole class of bug, gone, and
+it didn't cost us anything in render performance.
 
-### 3.2 Generative Runsheet integration (Vercel AI SDK)
-Added `app/api/generate-runsheet/route.ts`: a Next.js Route Handler using
-`generateObject` (`ai` SDK) against `@ai-sdk/openai` (`gpt-4o-mini`), with
-a Zod schema enforcing exactly three structured runsheet formats. The
-route is designed to **never surface an error to the client** — a missing
-`OPENAI_API_KEY` or any generation failure returns `{ ok: false }` with
-HTTP 200, and `RunsheetScreen.tsx` silently retains its local mock data
-(`RUNSHEET_FORMATS`) in that case. Dependency versions (`ai@7.0.77`,
-`@ai-sdk/openai@4.0.46`, `zod@4.4.3`) were deliberately pinned to releases
-with an established track record rather than floating to `latest`.
+### 3.2 Actually wiring up AI for the Runsheet
+Added `app/api/generate-runsheet/route.ts`: a real Next.js route calling
+`generateObject` from the `ai` SDK against `@ai-sdk/openai`
+(`gpt-4o-mini`), with a Zod schema forcing exactly three well-shaped
+formats back. We were strict about one thing here — **this can never
+show the creator an error.** No API key, a failed call, whatever — the
+route just says `{ ok: false }` and the client keeps its local mocks like
+nothing happened. We also pinned the new dependencies
+(`ai@7.0.77`, `@ai-sdk/openai@4.0.46`, `zod@4.4.3`) to specific versions
+instead of letting them float to `latest`.
 
-### 3.3 God Mode (internal demo control panel)
-Added `components/GodModeDrawer.tsx`, activated via a global `Shift + D`
-listener, enabling a presenter to: jump directly to any of the five
-flow stages (auto-filling the runsheet format / session stats defaults a
-skipped stage would otherwise require), force the next Copilot suggestion
-on demand, and clear all persisted local state with a two-step
-confirmation. This tool is explicitly excluded from the creator-facing
-product surface.
+### 3.3 God Mode
+Added `components/GodModeDrawer.tsx`, opened with `Shift + D` anywhere in
+the app. Lets whoever's driving jump straight to any of the five stages
+(auto-filling whatever a skipped stage would otherwise need), force the
+next Copilot suggestion instead of waiting, and wipe local storage with
+a two-step confirmation so we don't nuke state by accident. This is
+strictly a demo/dev tool — it's not meant for real users to ever find.
 
-**Attributed prompt (paraphrased):**
+**What we asked for (paraphrased):**
 > "Execute a production sprint: fix the z-index collisions in the LIVE
 > room by making the gift banner and highlighted question part of the
 > same dynamic stack as the Copilot. Wire the Runsheet screen to a real
@@ -158,66 +157,63 @@ product surface.
 > stages, force Copilot cues, and reset local storage. Verify with
 > `npm run build` before finishing."
 
-**Verification performed:** `npm run build` (TypeScript + SSR, zero
-errors) and `npm run lint` (zero warnings) after each workstream.
+**Checked before calling it done:** `npm run build` (TypeScript + SSR,
+clean) and `npm run lint` (clean) after each of the three pieces.
 
 ---
 
-## Phase 4 — Hyperrealism & Organic Chaos Sprint
+## Phase 4 — Making the LIVE room stop feeling like a loop
 
-*(Uncommitted at time of writing; staged for the next commit.)*
+*(Also not committed yet — staged.)*
 
-**Problem framed by design/QA review:** the LIVE room's chat simulation,
-while functionally complete, was visually flat — a fixed 24-message
-script looping every 46 seconds reads as repetitive within the first two
-loop cycles, undermining the "viral LIVE" illusion the product depends on
-for demo credibility.
+**The actual complaint that kicked this off:** the LIVE room worked, but
+it was obviously fake if you watched it for more than a minute or two —
+a 24-message script looping every 46 seconds starts repeating itself
+almost immediately, and that kills the illusion the whole product
+depends on for a good demo.
 
-### 4.1 Procedural chat data
-Removed the fixed `CHAT_SCRIPT` loop entirely. Replaced it with:
-- `CHAT_MESSAGE_POOL` (`lib/data.ts`) — 195 message variants assembled
-  programmatically from four composable sources (short reactions,
-  questions, emoji chains, and emphasis/uppercase variants of the
-  reaction set), rather than hand-authored one-by-one.
-- `generateUsername()` — combines 44 name stems with 20 suffixes and a
-  ~55% chance of an appended numeric ID, producing handles such as
+### 4.1 Ditching the fixed script
+Killed `CHAT_SCRIPT` entirely. Replaced it with:
+- `CHAT_MESSAGE_POOL` (`lib/data.ts`) — 195 message variants, built out
+  of four combinable pieces (short reactions, questions, emoji chains,
+  and shouted/emphasized versions of the reactions) instead of typing
+  195 lines by hand.
+- `generateUsername()` — mixes 44 name stems with 20 suffixes, with
+  roughly a 55% chance of tacking on a number, so you get things like
   `user84729`, `maria.gzz`, `juanperez_23`.
-- `REGULAR_VIEWERS` — 11 recurring handles surfaced ~40% of the time to
-  preserve a sense of audience continuity, blended with freshly generated
-  identities the remaining ~60%.
-- `GIFT_CATALOG` / `randomGift()` — realistic gifting value distribution
-  (≈85% low-value roses, ≈15% mid/high-value gifts), plus
-  `generateViralSurgeGift()` reserved for high-value gifts (≥400
-  diamonds) used exclusively by the God Mode "Viral Surge" action.
+- `REGULAR_VIEWERS` — 11 names that show up about 40% of the time so the
+  room feels like it has actual regulars, not just a firehose of random
+  strangers every message.
+- `GIFT_CATALOG` / `randomGift()` — realistic gift odds (about 85% cheap
+  roses, 15% something pricier), plus `generateViralSurgeGift()` which
+  only hands out the expensive stuff (400+ diamonds) and is reserved for
+  the God Mode surge button.
 
-### 4.2 Stochastic cadence engine
-Added `useOrganicChat` (`lib/hooks.ts`), replacing the previous fixed
-250ms interval scripted-playback loop. Each message is scheduled with a
-randomized 50–600ms delay, with a ~12% chance per tick of firing a 3–5
-message "burst" to emulate genuine excitement spikes. The hook performs
-no network or heavy synchronous work inside its timer callback — it only
-constructs plain objects and forwards them to a caller-supplied handler —
-preserving the 60fps performance budget.
+### 4.2 Making the timing feel less like a machine
+Added `useOrganicChat` (`lib/hooks.ts`) to replace the old fixed
+250ms interval that just replayed the script. Now each message gets a
+random 50–600ms delay, and about 12% of the time it fires a burst of 3–5
+messages at once to fake a real spike of excitement. It never does
+anything heavier than building an object and handing it off — no network
+calls, nothing that could cost a frame.
 
-### 4.3 Isolated particle system
-Extracted the floating-heart ("like") animation out of
-`LiveRoomScreen`'s top-level state into a self-contained, memoized
-`HeartsField` component with its own internal interval. This was a
-deliberate performance correction: the previous implementation drove
-heart particles from parent-level state, meaning every particle tick
-re-rendered the entire LIVE room tree. Each `FloatingHeart` now animates
-along a three-keyframe path (position, scale, opacity) approximating a
-bezier trajectory, and self-unmounts after its transition completes,
-keeping the DOM particle count bounded (≤14 concurrent hearts).
+### 4.3 Getting the hearts out of the way, performance-wise
+The floating "like" hearts used to live in `LiveRoomScreen`'s own state,
+which meant every single heart tick re-rendered the whole LIVE room
+around it — not great. Pulled it out into its own memoized `HeartsField`
+component with its own timer, fully isolated. Each heart
+(`FloatingHeart`) now animates through three keyframes for position,
+scale, and opacity to fake a curved path, and un-mounts itself the moment
+it's done so we never build up more than ~14 hearts on screen at once.
 
 ### 4.4 God Mode: Viral Surge
-Extended `GodModeDrawer.tsx` with a "Force Viral Surge" action that, via a
-`window` `CustomEvent`, simultaneously triggers: 15 chat messages spaced
-across ~1 second, a burst of 20 floating hearts, and a single high-value
-gift — giving a presenter an on-demand way to demonstrate the room's
-peak-excitement state during a live pitch.
+Added a "Force Viral Surge" button to `GodModeDrawer.tsx` that fires a
+`window` `CustomEvent` and, in one click, triggers 15 chat messages
+spread across about a second, 20 hearts at once, and one expensive gift —
+so whoever's presenting can show off the room at its most exciting moment
+on cue instead of waiting for it to happen naturally.
 
-**Attributed prompt (paraphrased):**
+**What we asked for (paraphrased):**
 > "The LIVE room simulation feels robotic and repetitive — comments loop
 > too predictably. Replace the scripted chat with a procedurally
 > generated pool of 150-200+ diverse messages (short reactions, emoji
@@ -227,30 +223,29 @@ peak-excitement state during a live pitch.
 > floating heart particles fully isolated so they never re-render the
 > rest of the screen, and give the God Mode panel a 'Force Viral Surge'
 > button that injects 15 messages in a second, 20 hearts, and one
-> high-value gift. Keep it at 60fps, don't touch the Zustand store or the
-   AI SDK integration, and verify the production build compiles cleanly."
+> high-value gift. Keep it at 60fps, don't touch the Zustand store or
+> the AI SDK integration, and verify the production build compiles
+> cleanly."
 
-**Verification performed:** `npm run build` (zero errors) and
-`npm run lint` (zero warnings, one auto-fixed unused-directive warning)
-after implementation.
+**Checked before calling it done:** `npm run build` (clean) and
+`npm run lint` (clean — fixed one unused-directive warning along the
+way).
 
 ---
 
-## Engineering Principles Observed Across All Phases
+## Rules we kept holding ourselves to
 
-1. **Fail silent, never fail visible.** Every external dependency
-   (the Runsheet generation endpoint) degrades to a local, deterministic
-   mock without a user-visible error state.
-2. **Performance budget enforced per-feature.** No interval- or timer-
-   driven simulation loop (chat, viewer count, heart particles, Copilot
-   cadence) performs network I/O or unbounded DOM growth; explicit caps
-   (`MAX_CHAT_NODES = 40`, ≤14 concurrent heart particles) are enforced at
-   the data-structure level, not just visually.
-3. **Read-before-write on every existing surface.** New capabilities
-   (God Mode, the Runsheet API, the organic chat engine) were additive:
-   no unrelated component's public props, the Zustand store shape, or the
-   AI SDK integration were altered by later phases.
-4. **Dependency pinning discipline.** New third-party dependencies were
-   pinned to specific, previously-published versions rather than floating
-   ranges, to avoid pulling in unvetted releases during a time-boxed
-   build.
+1. **Fail quiet, not loud.** The only real external dependency we have
+   (the Runsheet AI call) always degrades to a local mock instead of
+   showing the creator an error. That was non-negotiable for us.
+2. **Every simulation loop has a hard cap.** Chat, viewer count, hearts,
+   Copilot cadence — none of them touch the network, and none of them
+   grow the DOM without a limit (`MAX_CHAT_NODES = 40`, ~14 hearts max).
+   These caps live in the code, not just in "we'll be careful."
+3. **Don't break what's already working.** God Mode, the Runsheet API,
+   and the organic chat engine were all built as additions — none of
+   them changed another component's props, the Zustand store shape, or
+   how the AI SDK integration works.
+4. **Pin new dependencies.** New third-party packages got pinned to
+   specific, already-published versions instead of floating to
+   `latest`, since we didn't want to pull in something unvetted mid-build.

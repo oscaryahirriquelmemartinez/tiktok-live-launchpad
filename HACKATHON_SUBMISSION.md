@@ -4,73 +4,73 @@
 |---|---|
 | **Project** | LIVE Launchpad |
 | **Track** | TikTok Global Hackathon |
-| **Repository** | `oscaryahirriquelmemartinez/tiktok-live-launchpad` |
-| **Submission status** | MVP Prototype (functional, front-end complete) |
-| **Companion documents** | `PRD.md`, `DEVELOPMENT_LOG.md`, `CHANGELOG.md` |
+| **Repo** | `oscaryahirriquelmemartinez/tiktok-live-launchpad` |
+| **Where we're at** | MVP prototype — front-end is fully working, backend is intentionally still fake |
+| **Other docs in this repo** | `PRD.md`, `DEVELOPMENT_LOG.md`, `CHANGELOG.md` |
 
 ---
 
-## 1. One-Line Pitch
+## 1. The pitch, in one breath
 
-LIVE Launchpad converts a creator's short-video viral spike into their
-first TikTok LIVE broadcast — generating a ready-to-run runsheet,
-pre-warming a waiting room with the creator's own reactive audience, and
-coaching them in real time so they never have to improvise alone.
+The second a creator's short video spikes, LIVE Launchpad hands them a
+broadcast plan, fills the room with the people who already reacted to
+that exact video, and coaches them through the first few minutes on
+camera — so going live for the first time doesn't mean improvising alone
+in front of strangers.
 
 ---
 
-## 2. Team & Ownership
+## 2. Who did what
 
-| Name | Ownership Area |
+| Name | What they owned |
 |---|---|
-| **Alan Tang** | Product & Design Owner |
-| **Farid Porte Petit** | Strategy & Market Validation Owner |
-| **Ana Maria Prada** | Research & Problem Validation Owner |
-| **Oscar Riquelme** | Creator Insights & Beta Planning Owner |
+| **Alan Tang** | Product & Design |
+| **Farid Porte Petit** | Strategy & Market Validation |
+| **Ana Maria Prada** | Research & Problem Validation |
+| **Oscar Riquelme** | Creator Insights & Beta Planning |
 
-> **Note on attribution methodology:** the sections below map each team
-> member's declared ownership area to the corresponding artifact in this
-> submission. The project's version-controlled implementation history
-> (`DEVELOPMENT_LOG.md`, `git log`) reflects the engineering execution
-> phase and does not itself carry per-person commit attribution; the
-> matrix below should be treated as a **role-to-deliverable** map, not a
-> claim of specific line-level authorship.
+A quick honesty note on this table: our git history right now only has
+one committer on it (the engineering execution ran through one machine),
+so we're not going to pretend the commit log tells you who did what.
+What we're doing instead is mapping each person's actual ownership area
+to the part of the PRD/product that came out of it. That's a role-to-
+deliverable map, not a claim about who typed which line of code.
 
-### 2.1 Contribution Matrix (Role → Deliverable)
+### 2.1 Who owns what, concretely
 
-| Owner | Ownership Area | Primary Deliverable(s) in this Submission |
+| Owner | Area | What that turned into in this submission |
 |---|---|---|
-| **Alan Tang** | Product & Design | Section 3 ("Core Features") and Section 4.2 ("Application Flow") of `PRD.md` — the five-stage interaction model (Spike Prompt → Runsheet → Waiting Room → LIVE Room → Recap), overlay choreography, and the motion/visual design language (Tailwind theme tokens, Framer Motion transition system) implemented across `components/*.tsx`. |
-| **Farid Porte Petit** | Strategy & Market Validation | Section 6 ("Success Metrics") of `PRD.md` and the market framing in Section 1 ("Executive Summary") — the business case for spike-to-LIVE conversion as a growth lever, and the KPI set (conversion rate, time-to-LIVE, empty-room avoidance rate) the product is designed to move. |
-| **Ana Maria Prada** | Research & Problem Validation | Section 2 ("Problem Statement") of `PRD.md` — the four validated creator pain points ("what to say," "how to say it," "when to go live," "empty room fear") that this MVP's feature set is directly designed to resolve. |
-| **Oscar Riquelme** | Creator Insights & Beta Planning | Section 1.1 ("Target Audience") and Section 5 ("Roadmap / Phase 2") of `PRD.md`, the engineering build log (`DEVELOPMENT_LOG.md`), and this submission's Gap Analysis (Section 5 below) — translating creator-facing insight into the phased beta/production plan. |
+| **Alan Tang** | Product & Design | The five-stage flow and how it feels — Spike Prompt → Runsheet → Waiting Room → LIVE Room → Recap — plus the overlay behavior and the whole motion/visual language (the Tailwind theme, the Framer Motion transitions) you see across every screen in `components/*.tsx`. That's Sections 3 and 4.2 of `PRD.md`. |
+| **Farid Porte Petit** | Strategy & Market Validation | The business case for why spike-to-LIVE conversion is worth building at all, and the metrics we're actually going to judge ourselves by (conversion rate, time-to-LIVE, empty-room avoidance). That's Sections 1 and 6 of `PRD.md`. |
+| **Ana Maria Prada** | Research & Problem Validation | The four pain points the whole product is a response to — "what to say," "how to say it," "when to go live," and the empty-room fear. That's Section 2 of `PRD.md`, and honestly the reason the rest of the doc exists. |
+| **Oscar Riquelme** | Creator Insights & Beta Planning | Who this is actually for (Section 1.1), what we're punting to a Phase 2 backend (Section 5), the engineering build log (`DEVELOPMENT_LOG.md`), and the gap-analysis list below — turning "what creators told us" into an actual sequenced plan. |
 
-*(This matrix intentionally does not assign specific source files or
-commits to individuals beyond what is stated above, per the project's
-single-contributor git history at the time of this submission. Each
-owner is encouraged to expand their row with specific artifacts —
-interview notes, market research decks, beta cohort plans — ahead of
-final judging.)*
+*(Again — this isn't claiming line-level authorship, it's mapping
+ownership to output. If Alan, Farid, or Ana Maria want to attach actual
+artifacts — research notes, market decks, design files — to their row
+before judging, that'd make this a lot stronger.)*
 
 ---
 
-## 3. Build Log Summary
+## 3. What we actually built, in order
 
-Full detail lives in `DEVELOPMENT_LOG.md`. Condensed timeline:
+Full version is in `DEVELOPMENT_LOG.md`. Short version:
 
-| Phase | Summary | Git Reference |
+| Phase | What happened | Commit |
 |---|---|---|
-| 0 | Repository scaffold: Next.js 16 App Router shell, five-stage flow, mock data layer | `4347778` |
-| 1 | Tooling: automated push watcher for rapid iteration | `d592fab` |
-| 2 | Copilot v2: repositioning, cadence relaxation, per-category opt-out, trusted moderator flow, waiting-room expectation-setting | `170a9d8` |
-| 3 | Production sprint: z-index/layout hardening, Vercel AI SDK-generated runsheets with silent fallback, "God Mode" demo control panel | staged, pending commit |
-| 4 | Hyperrealism sprint: procedural chat/gift simulation, stochastic cadence engine, isolated particle rendering, "Viral Surge" demo trigger | staged, pending commit |
+| 0 | Got the whole five-screen flow up and running on mocks | `4347778` |
+| 1 | Added a script to stop manually pushing every five minutes | `d592fab` |
+| 2 | Fixed the Copilot after actually using it — placement, pacing, mute, moderator flow, expectations banner | `170a9d8` |
+| 3 | Fixed a UI overlap bug, wired real AI into the Runsheet, built God Mode for demos | staged, not committed yet |
+| 4 | Rebuilt the chat/gift simulation so the room stops feeling like a loop | staged, not committed yet |
 
-### 3.1 AI-Attributed Prompts
+### 3.1 The prompts we actually used
 
-This build used AI pair-programming (Devin CLI, Claude Sonnet models) in
-short, iterative **Rapid UI/UX Prototyping** cycles. The governing prompts
-for each phase, reproduced from `DEVELOPMENT_LOG.md`:
+A lot of this got built through fast prompt → generated code → look at
+it → fix it cycles with AI pair-programming (Devin CLI, Claude Sonnet
+models), rather than writing a full spec up front and building to it.
+Here's what we actually typed, phase by phase (pulled straight from
+`DEVELOPMENT_LOG.md`):
 
 - **Phase 0:** *"Build a mobile-first Next.js simulation of the TikTok
   app that walks a creator from a viral short-video spike into their
@@ -79,8 +79,8 @@ for each phase, reproduced from `DEVELOPMENT_LOG.md`:
 - **Phase 2:** *"The Copilot currently covers the creator's face and
   fires too often. Move it to the top of the room, relax the suggestion
   cadence, and let the creator permanently silence a suggestion
-  category... The Waiting Room should set expectations that not everyone
-  watching the video will join the LIVE."*
+  category... The Waiting Room should set expectations that not
+  everyone watching the video will join the LIVE."*
 - **Phase 3:** *"Execute a production sprint: fix the z-index collisions
   in the LIVE room... Wire the Runsheet screen to a real Vercel AI SDK
   endpoint... with a strict, silent fallback to the local mocks... Add a
@@ -89,17 +89,18 @@ for each phase, reproduced from `DEVELOPMENT_LOG.md`:
 - **Phase 4:** *"The LIVE room simulation feels robotic and repetitive...
   Replace the scripted chat with a procedurally generated pool of
   150-200+ diverse messages... Rebuild the cadence as a stochastic
-  engine... Keep it at 60fps, don't touch the Zustand store or the AI SDK
-  integration."*
+  engine... Keep it at 60fps, don't touch the Zustand store or the AI
+  SDK integration."*
 
-Each phase was closed out with an automated build/lint verification pass
-(`npm run build`, `npm run lint`) before being considered complete.
+Every phase got closed out with `npm run build` and `npm run lint`
+before we called it done — we didn't want to hand off broken code just
+because the feature demoed fine once.
 
 ---
 
-## 4. Panelist Access Guide
+## 4. How to actually check this out
 
-### 4.1 Local Evaluation (recommended for judging)
+### 4.1 Running it locally (this is the one we'd actually recommend)
 
 ```bash
 git clone https://github.com/oscaryahirriquelmemartinez/tiktok-live-launchpad.git
@@ -108,52 +109,47 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. The experience is a self-contained,
-mobile-width simulation (max 400px viewport) — no login, no seeded data,
-and no backend provisioning is required to evaluate the full flow.
+Then open `http://localhost:3000`. It's a self-contained phone-width
+simulation — no login, no data to seed, nothing to configure to see the
+whole flow work end to end.
 
-- **Optional:** set `OPENAI_API_KEY` in `.env.local` to evaluate the live
-  Vercel AI SDK–generated runsheets; without it, the app **automatically
-  and silently** falls back to curated local runsheet mocks — this is
-  expected behavior, not a bug, and is documented in `PRD.md` Section
-  4.3.
-- **God Mode (presenter/panelist shortcut):** press **`Shift + D`** on
-  any screen to open an internal control panel that lets a panelist jump
-  directly to any stage of the flow (Feed / Runsheet / Waiting Room /
-  LIVE Room / Post-LIVE) without replaying the full onboarding sequence,
-  force a LIVE Copilot suggestion on demand, or trigger a "Viral Surge"
-  to instantly observe the LIVE room at peak chat/gifting activity.
+- **Optional:** drop an `OPENAI_API_KEY` into `.env.local` if you want to
+  see the real AI-generated runsheets instead of the local mocks. Without
+  it, the app quietly falls back to the mocks — that's expected, not
+  broken (see `PRD.md`, Section 4.3).
+- **If you want to skip around instead of playing through the whole
+  flow:** hit `Shift + D` on any screen. That opens a panel that lets you
+  jump straight to any stage, force a Copilot suggestion instead of
+  waiting for it, or fire off a "Viral Surge" to instantly see the LIVE
+  room at its busiest.
 
-### 4.2 Hosted Evaluation
+### 4.2 Hosted version
 
-A Vercel project (`tiktok-live-launchpad`) is linked to this repository
-for continuous deployment. **The production URL is intentionally not
-listed in this document** pending confirmation from the team of the
-canonical domain to hand to judges — the team should insert the verified
-`https://<project>.vercel.app` (or custom domain) URL here before final
-submission, rather than relying on an unverified guess.
+There's a Vercel project (`tiktok-live-launchpad`) already linked to
+this repo. We're deliberately **not** putting a URL here yet — we'd
+rather leave this blank and have someone on the team drop in the actual,
+verified domain before this goes to judges than guess at one and be
+wrong.
 
 ---
 
-## 5. MVP Gap Analysis (Preview)
+## 5. Where the MVP still falls short
 
-A full, prioritized breakdown is delivered separately in the chat
-response accompanying this document. In summary, the current prototype
-is front-end complete but has no persistent backend, no automated test
-coverage, no analytics instrumentation, and no authentication layer —
-all required before a genuine creator-facing beta. See the chat output
-for the complete, categorized punch list.
+Short version: this is front-end complete and nothing else yet. No real
+backend, no tests, no analytics, no auth. The full breakdown is in the
+chat response that came with this doc, sorted by how much it'd hurt to
+ship without it.
 
 ---
 
-## 6. Submission Checklist
+## 6. Where things stand
 
-- [x] Functional end-to-end prototype (Feed → Runsheet → Waiting Room →
-  LIVE Room → Post-LIVE Recap)
-- [x] `PRD.md` — product requirements and roadmap
-- [x] `DEVELOPMENT_LOG.md` — engineering build log with attributed prompts
-- [x] `CHANGELOG.md` — user-facing change history
-- [x] `HACKATHON_SUBMISSION.md` — this document
-- [ ] Verified hosted demo URL for judges (pending team confirmation)
-- [ ] Team-authored expansion of the Contribution Matrix (Section 2.1)
-  with specific research/strategy artifacts
+- [x] Whole flow works end to end (Feed → Runsheet → Waiting Room → LIVE
+  Room → Recap)
+- [x] `PRD.md` — what we're building and why
+- [x] `DEVELOPMENT_LOG.md` — how we actually built it, prompts included
+- [x] `CHANGELOG.md` — what changed, for anyone tracking it
+- [x] `HACKATHON_SUBMISSION.md` — this doc
+- [ ] Real, verified demo URL for judges (waiting on the team to confirm)
+- [ ] Alan / Farid / Ana Maria adding their own specific artifacts to
+  Section 2.1

@@ -1,306 +1,301 @@
-# LIVE Launchpad — Product Requirements Document
+# LIVE Launchpad — Product Requirements Doc
 
-| **Status** | MVP (Prototype) |
-| **Owner** | Ana María Prada, Alan Tang, Farid Porte Petit, Oscar Yahir Riquelme Martinez|
-| **Platform** | TikTok LIVE (mobile, App Router web prototype) |
-| **Document version** | 1.0 |
+| | |
+|---|---|
+| **Status** | MVP prototype, front-end complete |
+| **Built by** | Ana María Prada, Alan Tang, Farid Porte Petit, Oscar Riquelme |
+| **Platform** | TikTok LIVE (mobile-first web prototype, Next.js App Router) |
+| **Doc version** | 1.0 |
 | **Last updated** | 2026-09-01 |
 
 ---
 
-## 1. Executive Summary
+## 1. What we're building
 
-**LIVE Launchpad** is a guided onboarding flow that converts a short-video
-creator's viral traffic spike into their first LIVE broadcast, at the exact
-moment audience attention is highest. Instead of asking a creator to
-independently decide *whether*, *what*, and *how* to go live, the product
-detects the spike, generates a ready-to-run broadcast plan, pre-warms a
-waiting room with the creator's own reactive audience, and provides
-real-time, in-broadcast coaching so the creator never has to improvise
-alone.
+Every short-video platform is great at telling a creator "hey, your video
+is blowing up." None of them do anything useful with that moment. The
+creator is left staring at a spike in their analytics with no idea what
+to actually do about it, and by the time they figure it out, the spike is
+gone.
 
-The current codebase is a fully interactive, mobile-first front-end
-prototype (Next.js App Router) that simulates the entire end-to-end
-journey — from the "For You" feed to the post-LIVE recap — with realistic,
-high-fidelity motion design, a generative AI integration for broadcast
-planning, and a deterministic fallback path that guarantees the experience
-never fails, even without network access or a configured AI provider.
+**LIVE Launchpad** is our attempt to close that gap: the second a
+creator's short video spikes, we hand them a broadcast plan, warm up a
+room with people who already reacted to that exact video, and coach them
+through the first few minutes so they're not improvising on camera in
+front of strangers.
 
-### 1.1 Target Audience
+What we've actually built so far is a fully clickable, mobile-first
+front-end prototype. It's not connected to a real backend yet — we'll get
+to why that's fine for now and what it means for later — but every screen
+in the flow works, animates, and behaves the way we want the real product
+to feel. We also wired in a real AI call for the broadcast-planning step
+(more on that below), so this isn't purely a static mockup.
 
-- **Primary persona: the mid-tier short-video creator.** Creators with an
-  established niche following (roughly 10K–500K followers) who post
-  short-form video regularly but have little or no experience hosting a
-  LIVE broadcast. They post consistently enough to occasionally produce a
-  video that significantly outperforms their baseline (a "spike"), but
-  lack the muscle memory, script, or confidence to capitalize on that
-  moment in real time.
-- **Secondary persona: the creator's trusted moderator.** A top fan, peer
-  creator, or long-time follower who can be delegated pinning and spam
-  moderation duties during the broadcast, reducing the cognitive load on
-  the creator.
+### 1.1 Who this is for
 
----
-
-## 2. Problem Statement
-
-Short-video platforms are exceptionally good at surfacing a creator's
-viral moment; they are not good at helping the creator convert that moment
-into a LIVE audience. Through creator interviews and platform behavior
-analysis, four recurring pain points were identified as the primary
-blockers preventing spike-to-LIVE conversion:
-
-1. **"I don't know what to say."** Creators freeze when asked to plan LIVE
-   content on the spot. There is no structured, data-informed script
-   connecting the video that went viral to a concrete LIVE agenda.
-2. **"I don't know how to say it."** Even with a topic, creators lack a
-   repeatable presentation format (Q&A, cook-along, goal-based, etc.) and
-   the in-the-moment cues (when to pin a comment, when to thank a gifter,
-   when to announce a goal) that make a broadcast feel professional.
-3. **"I don't know when to go live."** By the time a creator manually
-   decides to start a broadcast, the traffic spike has often already
-   cooled off. The window between "video goes viral" and "audience
-   attention decays" is measured in minutes, not hours.
-4. **"I'm afraid of the empty room."** The single biggest deterrent to a
-   first LIVE is the fear of starting a broadcast with zero viewers. There
-   is no mechanism today that proactively routes a creator's own reactive
-   audience (people who just liked/commented/shared the spiking video)
-   into the LIVE room before the creator presses "Go Live."
-
-LIVE Launchpad directly addresses all four pain points with a single,
-uninterrupted flow.
+- **Mainly: the "almost ready" creator.** Someone with a real niche
+  audience (roughly 10K–500K followers), posting short-form video
+  consistently, who occasionally has a video massively outperform their
+  usual numbers. They've never done a LIVE, or tried once and it felt
+  awkward. They have the audience to make a LIVE work — they just don't
+  have the reps.
+- **Secondary: whoever ends up moderating for them.** A top fan, a
+  friend, another small creator — someone the creator trusts enough to
+  hand pinning/spam duty to so they can focus on the camera instead of
+  the chat.
 
 ---
 
-## 3. Core Features
+## 2. The actual problem (and why we think it's four problems, not one)
+
+We kept hearing the same four things from creators, in slightly different
+words, and we think all four have to be solved together or the whole idea
+falls apart:
+
+1. **"I don't know what I'd even talk about."** There's no script. Going
+   live means improvising for 20+ minutes with no plan, based on a video
+   that just happened to catch fire.
+2. **"I don't know how to run it once I'm there."** Even with a topic,
+   most creators have never seen what "pin this comment now" or "thank
+   this person for their gift by name" looks like in practice. There's no
+   format, no playbook.
+3. **"By the time I figure out I should go live, it's too late."** Spikes
+   don't last. The gap between "this video is taking off" and "attention
+   has already moved on" is minutes, not hours — and manually deciding to
+   go live takes longer than that.
+4. **"I'm scared of starting with zero people in the room."** This one
+   came up constantly and we think it's the biggest blocker of the four.
+   Nobody wants to hit "Go Live" and stare at an empty room. There's
+   currently no way to pull the people who *just* engaged with your video
+   into a LIVE before you start.
+
+We didn't want to solve one of these and ship a half-answer. LIVE
+Launchpad is built as one continuous flow specifically because each step
+exists to knock out one of these four fears in order.
+
+---
+
+## 3. What's actually in the prototype
 
 ### 3.1 Spike Prompt
-A proactively surfaced, non-blocking bottom-sheet that appears when a
-creator's video crosses a virality threshold (defined here as view count,
-multiplier vs. baseline, and concurrent watchers). It quantifies the
-opportunity ("your video is 12x your average, 2,847 people are watching
-right now") and offers a single, low-friction CTA ("Go LIVE now") that
-kicks off the rest of the flow. Creators who dismiss the prompt are not
-penalized — a persistent re-entry pill remains available on the feed.
+A bottom-sheet that shows up once a video crosses a "this is spiking"
+threshold (view count, multiplier vs. that creator's normal baseline,
+concurrent watchers). It's blunt about the opportunity ("your video is
+12x your average, 2,847 people are watching it right now") and gives a
+single obvious next step. If someone dismisses it, we don't nag — a pill
+stays available on the feed so they can come back to it.
 
-*Implementation:* `components/SpikePromptModal.tsx`, triggered from
-`app/page.tsx` after a fixed dwell time on the feed (prototype uses a
-5-second timer as a stand-in for a real spike-detection trigger).
+*Where it lives:* `components/SpikePromptModal.tsx`, triggered from
+`app/page.tsx`. Right now it fires after a flat 5-second timer on the
+feed — that's a stand-in for real spike detection, not the real thing
+(see Section 5).
 
-### 3.2 AI-Generated Runsheet ("what to say" + "how to say it")
-Upon accepting the Spike Prompt, the system analyzes the viral video's
-metadata (caption, hashtags, view count, comment volume, multiplier) and
-proposes **three concrete, time-boxed broadcast formats** — e.g., a live
-Q&A optimized for retention, a gifting-goal format optimized for
-monetization, and a "cook-along" format optimized for watch-time — each
-with a minute-by-minute agenda. The creator picks one and moves on with a
-plan already in hand; there is no blank page.
+### 3.2 AI-generated Runsheet (the "what to say" / "how to say it" fix)
+Once someone accepts the Spike Prompt, we look at the video's own data
+(caption, hashtags, views, comment count, how far above baseline it is)
+and hand back **three concrete broadcast formats** — a live Q&A angle
+built for retention, a gifting-goal angle built for monetization, and a
+cook-along angle built for watch time — each with an actual minute-by-
+minute plan. Creator picks one and they're already moving. No blank page,
+no "uh, what do I even say."
 
-*Implementation:* `components/RunsheetScreen.tsx` requests a structured
-runsheet from `POST /app/api/generate-runsheet`, which uses the **Vercel
-AI SDK** (`generateObject`, `@ai-sdk/openai`, model `gpt-4o-mini`) with a
-Zod-validated schema to guarantee shape correctness. If no API key is
-configured, or the request fails or times out, the endpoint returns
-`{ ok: false }` and the client transparently falls back to a curated local
-mock (`RUNSHEET_FORMATS` in `lib/data.ts`) with **no visible error state**
-to the creator. This fallback-first design was a deliberate reliability
-requirement: the demo (and, by extension, the production experience) must
-never break due to AI provider unavailability.
+*Where it lives:* `components/RunsheetScreen.tsx` calls
+`POST /app/api/generate-runsheet`, which is a real integration with the
+**Vercel AI SDK** (`generateObject`, `@ai-sdk/openai`, `gpt-4o-mini`),
+validated against a Zod schema so we always get back exactly the shape we
+expect. If there's no API key configured, or the call fails, or it takes
+too long, the endpoint just responds `{ ok: false }` and the client
+quietly falls back to a set of hand-written mocks
+(`RUNSHEET_FORMATS` in `lib/data.ts`) — the creator never sees an error.
+We were pretty firm about this one: a demo (or a real product) can't
+break just because an AI provider had a bad day.
 
-### 3.3 Audience Bridge / Waiting Room ("the empty room fear")
-Once a format is selected, the app actively "bridges" the creator's
-existing reactive audience (people who engaged with the spiking video)
-into a pre-LIVE waiting room, with a live-updating notified-viewer counter,
-a simulated native push notification, and an explicit **expectation-setting
-banner** ("an estimated portion of the ~2,847 people currently watching
-your video may join; the final number can vary") so creators calibrate
-expectations rather than being surprised by variance. The waiting room
-also surfaces two decisions made once and remembered thereafter:
+### 3.3 Audience Bridge / Waiting Room (the "empty room" fix)
+After picking a format, we start actively routing the creator's own
+reactive audience — people who liked, commented, or shared the video that
+just spiked — into a waiting room, with a live counter, a simulated push
+notification ("🔴 valen.cocina is LIVE now"), and a banner that's upfront
+about the fact that not everyone watching will actually join
+("an estimated portion of the ~2,847 people watching may join — the
+final number can vary"). We added that expectations banner specifically
+because early feedback was that a raw number felt like an over-promise.
 
-- **Format confirmation** (carried over from the Runsheet step).
-- **Trusted Moderator selection** — the creator can delegate comment
-  pinning and spam moderation to a top fan or peer creator before the
-  broadcast starts, addressing the "who helps me run this" concern.
+Two decisions get made once here and carried forward instead of being
+re-asked every time:
 
-A 3-2-1 countdown transitions the creator into the LIVE room only once a
-minimum notified-audience threshold is met, reinforcing that they are
-never starting from zero.
+- The **format**, carried over from the Runsheet step.
+- The **trusted moderator** — a candidate list the creator can pick from
+  to hand off pinning/spam duty before they even start.
 
-*Implementation:* `components/AudienceBridgeScreen.tsx`.
+A 3-2-1 countdown only unlocks once a minimum notified-audience number is
+hit, so nobody starts from zero.
 
-### 3.4 Real-Time LIVE Copilot ("when to say it")
-During the broadcast, an in- context assistant surfaces exactly one
-suggestion at a time — pin the recipe, thank a gifter by name, surface a
-highlighted question, announce a gifting goal, welcome a wave of new
-joiners — anchored below the room header so it never obstructs the
-creator's face on camera. Suggestions are paced deliberately (first cue at
-7s, every ~17s thereafter, auto-dismissed after 9s of inactivity) to avoid
-notification fatigue, and creators can **opt out of a suggestion category
-permanently** for the session (persisted opt-out list), giving them
-control over the assistant's intrusiveness. All prior overlays (Copilot,
-opt-out confirmation, gift goal, pinned comment, large gift banner,
-highlighted question) share a single reflowing vertical stack, eliminating
-z-index collisions between simultaneous overlays.
+*Where it lives:* `components/AudienceBridgeScreen.tsx`.
 
-*Implementation:* `useCopilotMessages` (`lib/hooks.ts`), rendered inside
+### 3.4 LIVE Copilot (the "when to say it" fix)
+Once the broadcast starts, an assistant surfaces one suggestion at a
+time — pin the recipe, thank a gifter by name, surface a question that's
+getting repeated in chat, announce a gifting goal, welcome a wave of new
+joiners — anchored right under the room header so it never covers the
+creator's face. We deliberately slowed this down after it first felt too
+naggy: first suggestion at 7 seconds, then roughly every 17 seconds,
+auto-dismissed after 9 seconds if ignored. Creators can permanently mute
+a suggestion category for the rest of the session if it's not for them.
+Every overlay that can appear in the room (the Copilot card, the "you
+muted this" confirmation, the gift-goal bar, a pinned comment, a big gift
+banner, a highlighted question) now lives in the same stacking container,
+which fixed an annoying bug where two of these could visually collide.
+
+*Where it lives:* `useCopilotMessages` (`lib/hooks.ts`), rendered inside
 `components/LiveRoomScreen.tsx`.
 
-### 3.5 Organic Chat & Gifting Simulation
-To make the prototype's LIVE room feel authentic during demos and
-usability testing, chat activity, joins, and gifting are generated by a
-**stochastic engine** rather than a fixed, loopable script: message
-delays are randomized (50–600ms) with occasional 3–5 message "bursts" to
-mimic real excitement spikes, usernames are procedurally generated
-(`generateUsername()`) and blended with a set of recurring "regular
-viewers" for continuity, and gifts follow a realistic value distribution
-(frequent low-value roses, rare high-value gifts). Floating "like" hearts
-run in an isolated, memoized component so particle animation never
-triggers a re-render of the broadcast screen, keeping the experience at a
-steady 60fps.
+### 3.5 Chat & gifting that doesn't feel scripted
+We wanted the room to feel alive during demos, not like it's replaying a
+tape. So chat messages, joins, and gifts come from a randomized engine
+instead of a fixed loop: message timing is randomized between 50–600ms,
+with occasional bursts of 3–5 messages back-to-back to fake a real spike
+of excitement, usernames are generated on the fly and mixed with a
+handful of recurring "regulars" so the room feels continuous rather than
+purely random, and gifts follow a realistic distribution — mostly cheap
+roses, rarely something expensive. The floating heart animation runs
+completely on its own, isolated from the rest of the screen's state, so
+it never causes the room to drop frames.
 
-*Implementation:* `useOrganicChat` (`lib/hooks.ts`), `HeartsField` /
-`FloatingHeart` (`components/LiveRoomScreen.tsx`), procedural data pool in
-`lib/data.ts`.
+*Where it lives:* `useOrganicChat` (`lib/hooks.ts`), `HeartsField` /
+`FloatingHeart` (`components/LiveRoomScreen.tsx`), the message/username/
+gift pools in `lib/data.ts`.
 
-### 3.6 Post-LIVE Recap
-On ending the broadcast, the creator sees a summary (duration, peak
-viewers, diamonds earned, new followers) and is offered the option to
-**pin the session's trusted moderator** for all future LIVEs, closing the
-loop on the "who helps me run this" decision so it does not need to be
-re-made every time.
+### 3.6 Post-LIVE recap
+When the broadcast ends, we show duration, peak viewers, diamonds earned,
+new followers — and give the creator the option to pin the moderator who
+just helped them for all future LIVEs, so that decision doesn't have to
+be made from scratch every single time.
 
-*Implementation:* `components/LiveSummaryScreen.tsx`.
+*Where it lives:* `components/LiveSummaryScreen.tsx`.
 
-### 3.7 God Mode (internal demo/QA tooling)
-A developer-only control panel (`Shift + D`) allows a presenter to jump
-directly to any stage of the flow, force the next Copilot suggestion
-on demand, trigger a "Viral Surge" (15 chat messages within ~1s, 20
-simultaneous floating hearts, and one high-value gift) to showcase the
-room's peak-excitement state on demand, and clear persisted local state
-for a clean re-run. This tool is not part of the creator-facing product.
+### 3.7 God Mode (our own tool, not a creator feature)
+We built a hidden control panel (`Shift + D`) purely so we — or anyone
+demoing this — can jump straight to any screen, force a Copilot
+suggestion on demand, trigger a "Viral Surge" (15 chat messages in about
+a second, 20 hearts at once, one big gift) to show off the room's peak
+energy without waiting around, and wipe local state for a clean re-run.
+This has nothing to do with the actual product and shouldn't ship to
+real users.
 
-*Implementation:* `components/GodModeDrawer.tsx`.
+*Where it lives:* `components/GodModeDrawer.tsx`.
 
 ---
 
-## 4. Technical Architecture
+## 4. How it's actually built
 
-### 4.1 Stack (as implemented today)
+### 4.1 Stack, as it exists right now
 
-| Layer | Technology | Notes |
+| Layer | Tech | Notes |
 |---|---|---|
-| Framework | Next.js 16 (App Router, Turbopack) | Single-page client flow driven by `app/page.tsx` |
-| UI | React 19, Tailwind CSS v4 | Mobile-first, `max-w-[400px]` shell simulating a phone viewport |
-| Motion | Framer Motion | All transitions, overlays, particle systems |
-| Client state | Zustand + `persist` middleware (`localStorage`) | Session-scoped: chosen moderator, muted Copilot categories, moderator-pinned flag |
-| Generative AI | Vercel AI SDK (`ai`, `@ai-sdk/openai`), Zod schemas | Server-side route handler, `generateObject`, graceful degradation |
+| Framework | Next.js 16, App Router, Turbopack | one client-driven flow, `app/page.tsx` |
+| UI | React 19, Tailwind CSS v4 | mobile shell capped at `max-w-[400px]` |
+| Motion | Framer Motion | every transition, overlay, particle |
+| Client state | Zustand + `persist` (localStorage) | moderator, muted Copilot categories, pinned flag |
+| Generative AI | Vercel AI SDK + `@ai-sdk/openai`, Zod | server route, `generateObject`, falls back gracefully |
 | Icons | lucide-react | |
 
-There is **no persistent backend datastore and no WebSocket/real-time
-transport in the current implementation.** All "live" behavior (chat,
-gifting, viewer counts, notified-audience ramp) is deterministically
-simulated on the client using randomized timers (`setTimeout`/
-`setInterval`) and in-memory React state. This is an intentional
-prototype-stage decision that keeps the demo fully functional offline and
-without any backend provisioning, and it is called out explicitly here so
-the architecture section remains accurate to the shipped code.
+We want to be straight about this: **there's no real backend and no
+WebSocket/real-time transport right now.** Chat, gifts, viewer counts,
+the audience ramp in the waiting room — all of that is faked on the
+client with randomized timers and React state. We made that call
+knowingly, because it means the whole demo runs offline, with zero infra,
+which mattered a lot for a hackathon timeline. It's called out here so
+this doc doesn't overstate what's actually running.
 
-### 4.2 Application Flow (State Machine)
+### 4.2 How the flow is wired
 
-`app/page.tsx` orchestrates five mutually exclusive stages —
-`feed → runsheet → bridge → live → summary` — with directional,
-spring-animated transitions (Framer Motion `AnimatePresence`). Each stage
-is a self-contained component receiving only the props it needs
-(selected runsheet format, starting viewer count, ending stats), keeping
-cross-stage coupling minimal.
+`app/page.tsx` steps through five states —
+`feed → runsheet → bridge → live → summary` — with Framer Motion handling
+the slide transitions between them. Each screen only gets the props it
+actually needs (the chosen format, starting viewer count, end-of-LIVE
+stats), so screens don't reach into each other's state.
 
-### 4.3 Generative Runsheet Pipeline
+### 4.3 How the Runsheet call actually works
 
 ```
 RunsheetScreen (client)
   → POST /api/generate-runsheet  { caption, hashtags, views, comments, multiplier }
      → generateObject({ model: openai("gpt-4o-mini"), schema: ResponseSchema })
-        → { ok: true, formats: RunsheetFormat[3] }   // success path
-        → { ok: false, reason }                       // missing key / failure / timeout
-  ← client validates shape (isValidFormats) and swaps mocks → AI output,
-    or silently keeps the local mocks (RUNSHEET_FORMATS) on any failure
+        → { ok: true, formats: RunsheetFormat[3] }   // it worked
+        → { ok: false, reason }                       // no key / failed / timed out
+  ← client checks the shape (isValidFormats) and swaps mocks for the AI
+    output, or just keeps the local mocks if anything went wrong
 ```
 
-The route always responds with HTTP 200 on the "no AI available" path by
-design — a non-200 status is reserved for genuine transport failures,
-ensuring the client's `fetch`/`try-catch` fallback logic is the single
-source of truth for "did generation succeed," not the HTTP status code.
+We made a point of always returning HTTP 200 on the "no AI available"
+path — a non-200 is reserved for genuine network failure — so the
+client's own success/failure check is what actually decides the
+fallback, not the status code.
 
-### 4.4 Local State Persistence
+### 4.4 What we're actually persisting
 
-`lib/store.ts` defines a single Zustand store persisted under the
-`live-launchpad-session` `localStorage` key, holding: the selected trusted
-moderator, the list of Copilot suggestion categories the creator has
-opted out of, and whether the moderator was pinned for future LIVEs. This
-state intentionally survives page reloads within a browser but is
-device-local — it is **not** synchronized across devices or sessions,
-which is the primary gap addressed in the roadmap below.
+`lib/store.ts` is one Zustand store, saved to `localStorage` under
+`live-launchpad-session`: the chosen moderator, which Copilot categories
+got muted, and whether the moderator got pinned for next time. It
+survives a page reload on the same browser, but it's tied to that one
+device — nothing syncs across sessions or devices yet. That's the single
+biggest thing standing between this and a real product (more below).
 
-### 4.5 Performance Constraints
+### 4.5 Performance rules we held ourselves to
 
-- The chat surface caps rendered DOM nodes at 40 (`MAX_CHAT_NODES`), with
-  the oldest messages evicted on overflow; chat rows are memoized
-  (`React.memo`) so unrelated updates don't force a full list re-paint.
-- The floating-heart particle system is isolated into its own memoized
-  component with a self-contained interval, so its render cycle never
-  propagates to the parent LIVE room tree.
-- No network requests occur inside any interval-driven loop (chat,
-  viewer-count, or heart-particle timers); the only network call in the
-  entire flow is the one-shot Runsheet generation request.
-
----
-
-## 5. Out of Scope / Roadmap (Phase 2)
-
-The following capabilities are referenced in the product vision but are
-**not present in the current codebase**. They are documented here as
-forward-looking architecture, not as shipped functionality, to keep this
-PRD an accurate reflection of the prototype.
-
-### 5.1 Backend Real-Time Migration (Supabase)
-The current chat/gifting/viewer simulation is a client-only stand-in for
-what would, in production, be a genuine real-time transport. The intended
-Phase 2 migration replaces the local stochastic engine with:
-- **Supabase Realtime (Postgres logical replication / broadcast
-  channels)** as the transport for chat messages, gift events, and viewer
-  presence, replacing `useOrganicChat`'s client-side timers with a
-  subscription to a live channel.
-- **Supabase Postgres** as the system of record for session history,
-  moderator relationships, and Copilot opt-out preferences — replacing the
-  current `localStorage`-only persistence in `lib/store.ts` with a
-  synced, multi-device source of truth (Supabase Auth would gate this).
-- **Supabase Edge Functions** as the natural home for the spike-detection
-  trigger that currently exists only as a fixed 5-second demo timer in
-  `app/page.tsx`.
-
-### 5.2 Motion/Asset Pipeline (Lottie)
-Complex celebratory or onboarding animations (e.g., gift-goal completion,
-first-LIVE milestone) are currently implemented as hand-tuned Framer
-Motion keyframe sequences. A Lottie integration is planned for
-designer-authored, After Effects–sourced animations that exceed what is
-practical to hand-code in Framer Motion, without impacting the 60fps
-performance budget established in Section 4.5.
-
-### 5.3 Live Spike Detection
-The Spike Prompt's trigger condition is currently a fixed timer for
-demonstration purposes. Production spike detection requires a real
-analytics pipeline (view velocity, multiplier vs. rolling baseline,
-concurrent-watcher count) feeding a decision service — a natural fit for
-the Supabase Edge Function described in 5.1.
+- Chat never renders more than 40 messages at once (`MAX_CHAT_NODES`) —
+  old ones get evicted, and rows are memoized so unrelated updates don't
+  repaint the whole list.
+- The floating hearts run in their own memoized component with their own
+  timer, so heart animation ticks never re-render the LIVE room around
+  them.
+- Nothing inside a repeating loop (chat, viewer count, hearts) ever makes
+  a network call. The Runsheet request is the only network call in the
+  entire flow, and it happens exactly once.
 
 ---
 
-## 6. Success Metrics (Product)
+## 5. What we didn't build (and why that's okay for now)
 
-| Metric | Definition |
+These next two things get referenced in how we talk about the product,
+but **they are not in the codebase today.** We're calling that out
+explicitly here instead of letting the doc imply otherwise.
+
+### 5.1 Moving the "real-time" stuff to an actual backend (Supabase)
+Right now the chat/gift/viewer simulation is a stand-in for what a real
+deployment would need. The plan, when we get to it:
+- **Supabase Realtime** as the actual transport for chat, gifts, and
+  viewer presence — subscribing to a live channel instead of
+  `useOrganicChat`'s client-side timers.
+- **Supabase Postgres** as the real system of record for session
+  history, moderator relationships, and Copilot preferences, replacing
+  the `localStorage`-only setup in `lib/store.ts` with something that
+  actually syncs across devices (behind Supabase Auth).
+- **Supabase Edge Functions** as the natural place to run real spike
+  detection instead of the flat 5-second timer we're using today.
+
+### 5.2 Lottie for the animations that are too fancy to hand-code
+Right now every celebratory moment (gift-goal completion, first-LIVE
+milestone) is a hand-tuned Framer Motion keyframe sequence. At some point
+we'll want designer-made, After Effects–sourced animations that go beyond
+what's reasonable to hand-code — that's where Lottie comes in, without
+blowing the 60fps budget from Section 4.5.
+
+### 5.3 Actual spike detection
+The Spike Prompt firing on a flat timer is purely a demo stand-in. A real
+version needs an actual analytics pipeline — view velocity, multiplier
+against a rolling baseline, concurrent watchers — feeding a decision
+service, which is exactly the kind of thing the Edge Function in 5.1
+would run.
+
+---
+
+## 6. How we'll know if this is working
+
+| Metric | What it tells us |
 |---|---|
-| Spike-to-LIVE conversion rate | % of Spike Prompt impressions that result in a started broadcast |
-| Time-to-LIVE | Elapsed time from Spike Prompt acceptance to broadcast start |
-| Empty-room avoidance rate | % of first-time LIVEs starting with >0 notified/bridged viewers |
-| Copilot engagement rate | % of surfaced Copilot cues acted upon vs. dismissed/muted |
-| Moderator adoption rate | % of creators who select a trusted moderator and later pin them post-LIVE |
+| Spike-to-LIVE conversion rate | % of Spike Prompt views that turn into an actual broadcast |
+| Time-to-LIVE | how long from "accepted the prompt" to "actually live" |
+| Empty-room avoidance rate | % of first LIVEs that start with more than zero people already in |
+| Copilot engagement rate | % of suggestions acted on vs. dismissed/muted |
+| Moderator adoption rate | % of creators who pick a moderator and then pin them afterward |
