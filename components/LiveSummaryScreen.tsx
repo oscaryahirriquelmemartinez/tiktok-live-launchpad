@@ -5,17 +5,18 @@
 import { motion } from "framer-motion";
 import { BellRing, Clock3, Gem, ShieldCheck, UserPlus, UsersRound } from "lucide-react";
 import { Avatar, StatusBar } from "@/components/chrome";
-import { CREATOR } from "@/lib/data";
+import { Creator } from "@/lib/tiktok-sdk";
 import { dots, mmss } from "@/lib/format";
 import { useLiveStore } from "@/lib/store";
 import type { LiveStats } from "@/components/LiveRoomScreen";
 
 type Props = {
+  creator: Creator;
   stats: LiveStats;
   onRestart: () => void;
 };
 
-export function LiveSummaryScreen({ stats, onRestart }: Props) {
+export function LiveSummaryScreen({ creator, stats, onRestart }: Props) {
   const moderator = useLiveStore((s) => s.moderator);
   const moderatorPinned = useLiveStore((s) => s.moderatorPinned);
   const setModeratorPinned = useLiveStore((s) => s.setModeratorPinned);
@@ -38,14 +39,14 @@ export function LiveSummaryScreen({ stats, onRestart }: Props) {
         className="mt-8 flex flex-col items-center"
       >
         <div className="relative">
-          <Avatar emoji={CREATOR.emoji} hue={12} size={84} ring />
+          <Avatar emoji={creator.emoji} hue={12} size={84} ring />
           <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-md bg-white px-2 py-[2px] text-[10px] font-black text-black">
             ¡PRIMER LIVE! 🎉
           </span>
         </div>
         <img src="/assets/tiktok-live-logo.svg" alt="TikTok LIVE" className="mt-7 h-6" />
         <h1 className="mt-3 text-center text-[22px] font-bold leading-tight">
-          Lo lograste, {CREATOR.name}
+          Lo lograste, {creator.name}
         </h1>
         <p className="mt-1 text-center text-[13px] text-white/60">
           Convertiste tu pico viral en tu primera transmisión

@@ -233,6 +233,177 @@ way).
 
 ---
 
+## Phase 5 — Patrón de Adaptador SDK + 5 verticales de contenido
+
+*(No commiteado todavía — staged en working tree.)*
+
+**El detonante:** el MVP vivía 100% de un perfil hardcodeado de cocina
+(`CREATOR`, `VIRAL_VIDEO`, `CHAT_SCRIPT` en `lib/data.ts`). Para una demo
+que se presenta a un comité de compliance corporativo, eso es un
+problema: el producto no puede pretender ser "un caso de uso" cuando
+TikTok LIVE cubre muchas comunidades distintas. Y no podemos pegar un
+perfil real de TikTok arriba de todo sin implicar que esto es una
+taxonomía oficial. Así que esta fase hizo dos cosas a la vez: abstrajo
+toda la data detrás de un "SDK" en memoria, y la dividió en 5
+verticales demostrables.
+
+### 5.1 La capa `lib/tiktok-sdk/` (compliance adapter)
+
+Creamos una carpeta nueva que es lo único que el resto de la app toca
+para data:
+
+- `lib/tiktok-sdk/types.ts` — los tipos del dominio (`Creator`,
+  `ViralVideo`, `LiveSession`, `VerticalProfile`, `ViewerChannel`,
+  `RunsheetFormat`, `ChatEvent`, `CopilotCue`...). Nada aquí llama a
+  una API.
+- `lib/tiktok-sdk/verticals.ts` — los 5 perfiles verticales completos
+  (Beauty, Fashion, Food, DIY, Electronics). Cada uno trae su propio
+  creador, video viral, formatos de runsheet, jerga de chat
+  hiper-específica (`reactionLines` + `questionLines`), meta de regalos
+  temática, reveal de la meta, teaser del Audience Bridge, cues del
+  Copilot y pregunta destacada. ~585 líneas.
+- `lib/tiktok-sdk/engine.ts` — el motor procedimental compartido entre
+  verticales: `generateUsername()`, `randomIdentity()` (40% regulares /
+  60% nuevos), `buildChatMessagePool()` (combina reacciones de la
+  vertical + genéricas + énfasis + mayúsculas + cadenas de emojis),
+  `randomGift()` (85% rosas / 15% catálogo), `generateViralSurgeGift()`
+  (regalos de 400+ diamantes), `MAX_CHAT_NODES = 40`, cadencia del
+  Copilot. ~199 líneas.
+- `lib/tiktok-sdk/index.ts` — el adaptador público `TikTokSDK` con
+  `Live.createSession()`, `Runsheet.getDefaultFormats()`,
+  `Copilot.getCues()/getActions()/getHighlightedQuestion()`,
+  `Bridge.getConfig()/getModCandidates()`, `Viewer.connect()`. Cada
+  método paga una latencia simulada (`withLatency`, ~220–300ms) como si
+  fuera un SDK real conectándose a TikTok LIVE, pero todo es local.
+
+> **Por qué importa para compliance:** hoy cada método está respaldado
+> por data 100% local. El día que exista un backend real, solo esta
+> carpeta cambia — el resto de la app no se entera. Cero acoplamiento
+> a bases de datos reales, cero fetch a un servidor externo.
+
+### 5.2 Las 5 verticales
+
+| id | Label | Creador | Video viral (resumen) | Meta de regalos |
+|---|---|---|---|---|
+| `beauty` | Beauty & Skincare | Cami (`cami.skin`) | Rutina coreana 5 pasos | 5K diamantes → revela "el sérum secreto" |
+| `fashion` | Fashion & Styling | Valentina (`valentina.studio`) | Outfit recycling 1 prenda 5 looks | 8K diamantes → revela "el drop cápsula" |
+| `food` | Food & Cooking | Fer (`fer.eats`) | Pasta en 60s que rompió | 3K diamantes → revela "la salsa secreta" |
+| `diy` | Home DIY | Tomás (`tomas.builds`) | Habitación con $50 y cinta | 6K diamantes → revela "el hack del organizador" |
+| `electronics` | Consumer Electronics | Kevin (`kevin.tech`) | Unboxing del gadget $20 | 10K diamantes → revela "el accesorio oculto" |
+
+Cada vertical tiene su propio vocabulario de chat. Por ejemplo, Beauty
+tiene "¿ese sérum sirve para piel grasa?", Food tiene "¿la salsa lleva
+ajo?", DIY tiene "¿qué pintura usaste en la pared?", Electronics tiene
+"¿cuánto tarda en cargar?". El pool se construye combinando esas líneas
+con reacciones genéricas + énfasis + mayúsculas + cadenas de emojis, así
+que cada vertical se siente distinta sin que nadie tenga que escribir
+200 mensajes a mano.
+
+### 5.3 `activeVertical` en el store
+
+`lib/store.ts` ahora tiene `activeVertical: VerticalId` (default
+`'beauty'`) y `setActiveVertical(v)`. Se persiste en localStorage junto
+al moderador y las categorías silenciadas del Copilot.
+
+### 5.4 Migración de los componentes a data dinámica
+
+Esto fue la mayor parte del trabajo tedioso. Antes, cada pantalla
+importaba `CREATOR` y `VIRAL_VIDEO` directamente de `lib/data.ts`.
+Ahora `app/page.tsx` bootea una sesión con
+`TikTokSDK.Live.createSession()` y le pasa los datos derivados del
+perfil a cada pantalla como props:
+
+- `ForYouScreen.tsx` — recibe `creator` y `viralVideo` como props.
+- `SpikePromptModal.tsx` — recibe `viralVideo` dinámico.
+- `RunsheetScreen.tsx` — recibe `viralVideo`, `defaultFormats` y el
+  formato seleccionado.
+- `AudienceBridgeScreen.tsx` — recibe `creator`, `viralVideo` y
+  `format` dinámicos.
+- `LiveRoomScreen.tsx` — recibe `sessionId`, `creator`, `giftGoal`,
+  `format`, `startViewers`. Se conecta al canal del SDK
+  (`TikTokSDK.Viewer.connect()`) para el chat orgánico.
+- `LiveSummaryScreen.tsx` — recibe `creator` y `stats` dinámicos.
+
+`app/page.tsx` muestra un "Conectando con TikTok LIVE…" mientras la
+sesión mockeada "conecta" (~300ms de latencia simulada), para reforzar la
+ilusión del adaptador.
+
+### 5.5 Lo que NO está terminado en esta fase (gap analysis honesto)
+
+1. **La ruta de IA sigue en OpenAI.** `app/api/generate-runsheet/route.ts`
+   todavía usa `@ai-sdk/openai` con `gpt-4o-mini`. La migración a
+   `gemini-1.5-flash` (con `vertical` en el body y prompt
+   contextualizado por nicho) **no se completó** — la dependencia
+   `@ai-sdk/google` no está instalada y no hay `GEMINI_API_KEY` en
+   `.env.local`. La ruta sigue funcionando con su fallback silencioso a
+   los mocks del SDK.
+2. **El selector de vertical en God Mode no se construyó.**
+   `GodModeDrawer.tsx` no tiene UI para elegir vertical. El store tiene
+   `activeVertical`/`setActiveVertical`, pero nada lo lee todavía para
+   regenerar la sesión.
+3. **`page.tsx` no reacciona a `activeVertical`.** El bootstrap llama
+   `TikTokSDK.Live.createSession()` sin argumento, así que siempre usa
+   el default (`beauty`). Falta un `useEffect` que escuche
+   `activeVertical` y vuelva a crear la sesión + reconectar el canal de
+   chat sin recargar la página.
+4. **`RunsheetFormat.id` tiene un desajuste de tipos.** El SDK usa
+   `"qa" | "goal" | "immersive"`; la ruta de IA todavía valida
+   `"qa" | "goal" | "cookalong"`. `tsc --noEmit` pasa porque la ruta no
+   importa el tipo del SDK, pero es deuda técnica: hay que unificar a un
+   tipo canónico.
+5. **Lint:** 1 error (`react-hooks/set-state-in-effect` en
+   `ForYouScreen.tsx:41`) + 6 warnings de exports no usados en
+   `lib/tiktok-sdk/index.ts` (los exportamos para uso futuro pero
+   nadie los importa todavía).
+
+**Lo que sí está verde:**
+- `npx tsc --noEmit` — pasa limpio.
+- Los 5 perfiles verticales están completos y son navegables vía
+  `getVerticalProfile(id)`.
+- Toda la UI ya consume data dinámica del SDK en vez de imports
+  estáticos de `lib/data.ts`.
+
+**Lo que pedimos (parafraseado):**
+> "Refactoriza la capa de datos del tiktok-sdk para soportar 5 perfiles
+> verticales distintos. Conecta esta selección de vertical al estado
+> global, adapta la ruta de IA (Gemini) para generar runsheets
+> contextualizados según el nicho, y agrega un selector de vertical en
+> el God Mode, asegurando un reporte final de ejecución."
+
+**Leímos antes de implementar:** los PDFs de compliance de TikTok LIVE
+en `~/Downloads` (`Comunidades y normas...`, `Comunidades, normas y
+rasgos distintivos...`, `LIVE Launchpad.pdf`). Conclusiones clave que
+guiaron el diseño: no existe un inventario oficial global de
+comunidades LIVE; las reglas generales son transversales y las
+verticales suman riesgo contextual; las penalidades pueden afectar
+disponibilidad, recomendación, edad o monetización independientemente;
+y la presentación no debe implicar que estos 5 perfiles mockeados son
+una taxonomía oficial de TikTok ni que hay disponibilidad uniforme por
+región, cuenta o dispositivo.
+
+### 5.6 Aviso obligatorio de normas comunitarias (no opcional)
+
+`AudienceBridgeScreen.tsx` muestra un modal **obligatorio** al presionar
+"Iniciar LIVE" que bloquea la cuenta regresiva 3-2-1 hasta que el
+creador acepta explícitamente ("Entendido, ir LIVE"). El texto es:
+
+> ### ⚠️ Antes de hacer LIVE
+>
+> * 🚫 **Nada de desnudos, contenido sexual o violencia explícita.**
+> * 🚫 **No insultes, amenaces, acoses ni discrimines a otras personas.**
+> * ⚠️ **No hagas retos o actividades peligrosas, ilegales o que puedan causar daño.**
+> * 🎁 **No engañes a tu audiencia ni manipules regalos, ventas, vistas o interacciones.**
+> * 📵 **No transmitas contenido pregrabado, robado o de terceros sin autorización.**
+>
+> **Incumplir estas reglas puede resultar en una advertencia, la interrupción del LIVE o restricciones en tu cuenta.**
+
+Esto no es opcional ni se puede saltar: el estado `guidelinesOpen`
+controla el flujo y solo `setCountdown(3)` (que arranca el LIVE) se
+ejecuta desde el botón "Entendido, ir LIVE". Ver líneas 393–467 de
+`components/AudienceBridgeScreen.tsx`.
+
+---
+
 ## Rules we kept holding ourselves to
 
 1. **Fail quiet, not loud.** The only real external dependency we have

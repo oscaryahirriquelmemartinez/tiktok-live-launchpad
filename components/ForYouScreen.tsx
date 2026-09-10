@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Bookmark,
@@ -18,20 +18,30 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import { Avatar, StatusBar, VideoBackdrop } from "@/components/chrome";
-import { CREATOR, VIRAL_VIDEO } from "@/lib/data";
+import { Creator, ViralVideo } from "@/lib/tiktok-sdk";
 import { compact } from "@/lib/format";
 import { useInterval } from "@/lib/hooks";
 
 type Props = {
+  creator: Creator;
+  viralVideo: ViralVideo;
   spikeAvailable: boolean; // el prompt fue cerrado: mostrar pill para reabrirlo
   onOpenSpike: () => void;
 };
 
-export function ForYouScreen({ spikeAvailable, onOpenSpike }: Props) {
+export function ForYouScreen({ creator, viralVideo, spikeAvailable, onOpenSpike }: Props) {
   // Inercia viral simulada: contadores subiendo en vivo (solo cliente)
-  const [likes, setLikes] = useState(VIRAL_VIDEO.likesStart);
-  const [comments, setComments] = useState(VIRAL_VIDEO.comments);
-  const [shares, setShares] = useState(VIRAL_VIDEO.shares);
+  const [likes, setLikes] = useState(viralVideo.likesStart);
+  const [comments, setComments] = useState(viralVideo.comments);
+  const [shares, setShares] = useState(viralVideo.shares);
+
+  // Si cambia la vertical activa (God Mode), reinicia los contadores al
+  // punto de partida del nuevo video viral en vez de arrastrar el anterior.
+  useEffect(() => {
+    setLikes(viralVideo.likesStart);
+    setComments(viralVideo.comments);
+    setShares(viralVideo.shares);
+  }, [viralVideo]);
 
   useInterval(() => {
     setLikes((v) => v + 40 + Math.floor(Math.random() * 90));
@@ -77,36 +87,36 @@ export function ForYouScreen({ spikeAvailable, onOpenSpike }: Props) {
       {/* Botonera derecha */}
       <div className="absolute bottom-[120px] right-1.5 z-20 flex w-16 flex-col items-center gap-[18px]">
         <div className="relative mb-1">
-          <Avatar emoji={CREATOR.emoji} hue={12} size={47} ring />
+          <Avatar emoji={creator.emoji} hue={12} size={47} ring />
           <span className="absolute -bottom-2 left-1/2 flex size-[18px] -translate-x-1/2 items-center justify-center rounded-full bg-tt-pink">
             <Plus size={12} strokeWidth={4} />
           </span>
         </div>
         <RailStat icon={<Heart size={35} fill="white" strokeWidth={0} />} value={compact(likes)} pulse />
         <RailStat icon={<MessageCircle size={33} fill="white" strokeWidth={0} className="-scale-x-100" />} value={compact(comments)} />
-        <RailStat icon={<Bookmark size={31} fill="white" strokeWidth={0} />} value={compact(VIRAL_VIDEO.saves)} />
+        <RailStat icon={<Bookmark size={31} fill="white" strokeWidth={0} />} value={compact(viralVideo.saves)} />
         <RailStat icon={<Forward size={35} fill="white" strokeWidth={0} />} value={compact(shares)} />
         <div
           className="mt-1 flex size-11 animate-[spin_6s_linear_infinite] items-center justify-center rounded-full border-[6px] border-[#1b1b1b]"
           style={{ background: "radial-gradient(circle, #4a4a4a 0%, #161616 62%)" }}
         >
-          <Avatar emoji={CREATOR.emoji} hue={12} size={20} />
+          <Avatar emoji={creator.emoji} hue={12} size={20} />
         </div>
       </div>
 
       {/* Caption inferior */}
       <div className="absolute bottom-[60px] left-3 right-20 z-20 flex flex-col gap-1.5">
-        <span className="text-[16px] font-bold">@{CREATOR.handle}</span>
+        <span className="text-[16px] font-bold">@{creator.handle}</span>
         <p className="text-[14px] leading-snug text-white/95">
-          {VIRAL_VIDEO.caption}{" "}
-          <span className="font-semibold">{VIRAL_VIDEO.hashtags.join(" ")}</span>
+          {viralVideo.caption}{" "}
+          <span className="font-semibold">{viralVideo.hashtags.join(" ")}</span>
         </p>
         <div className="flex items-center gap-2">
           <Music2 size={15} />
           <div className="w-44 overflow-hidden">
             <div className="flex w-max animate-[marquee_7s_linear_infinite] gap-8 text-[13px]">
-              <span>{VIRAL_VIDEO.sound}</span>
-              <span>{VIRAL_VIDEO.sound}</span>
+              <span>{viralVideo.sound}</span>
+              <span>{viralVideo.sound}</span>
             </div>
           </div>
         </div>

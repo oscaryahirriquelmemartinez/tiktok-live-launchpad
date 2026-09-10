@@ -5,7 +5,7 @@
 | **Project** | LIVE Launchpad |
 | **Track** | TikTok Global Hackathon |
 | **Repo** | `oscaryahirriquelmemartinez/tiktok-live-launchpad` |
-| **Where we're at** | MVP prototype — front-end is fully working, backend is intentionally still fake |
+| **Where we're at** | MVP prototype — front-end works across 5 content verticals, backend is intentionally still fake |
 | **Other docs in this repo** | `PRD.md`, `DEVELOPMENT_LOG.md`, `CHANGELOG.md` |
 
 ---
@@ -63,6 +63,7 @@ Full version is in `DEVELOPMENT_LOG.md`. Short version:
 | 2 | Fixed the Copilot after actually using it — placement, pacing, mute, moderator flow, expectations banner | `170a9d8` |
 | 3 | Fixed a UI overlap bug, wired real AI into the Runsheet, built God Mode for demos | staged, not committed yet |
 | 4 | Rebuilt the chat/gift simulation so the room stops feeling like a loop | staged, not committed yet |
+| 5 | Abstracted all data behind an in-memory "TikTokSDK" adapter and split it into 5 content verticals (Beauty, Fashion, Food, DIY, Electronics) | staged, not committed yet |
 
 ### 3.1 The prompts we actually used
 
@@ -91,6 +92,11 @@ Here's what we actually typed, phase by phase (pulled straight from
   150-200+ diverse messages... Rebuild the cadence as a stochastic
   engine... Keep it at 60fps, don't touch the Zustand store or the AI
   SDK integration."*
+- **Phase 5:** *"Refactoriza la capa de datos del tiktok-sdk para
+  soportar 5 perfiles verticales distintos. Conecta esta selección de
+  vertical al estado global, adapta la ruta de IA (Gemini) para generar
+  runsheets contextualizados según el nicho, y agrega un selector de
+  vertical en el God Mode."*
 
 Every phase got closed out with `npm run build` and `npm run lint`
 before we called it done — we didn't want to hand off broken code just
@@ -113,10 +119,34 @@ Then open `http://localhost:3000`. It's a self-contained phone-width
 simulation — no login, no data to seed, nothing to configure to see the
 whole flow work end to end.
 
+- **5 content verticals:** the data layer (`lib/tiktok-sdk/`) ships 5
+  complete demo profiles — Beauty & Skincare, Fashion & Styling, Food &
+  Cooking, Home DIY, and Consumer Electronics. Each one has its own
+  creator, viral video, chat vocabulary, gift goal, Copilot cues and
+  runsheet formats. The active vertical lives in the Zustand store
+  (`activeVertical`) and the SDK adapter (`TikTokSDK`) builds a session
+  from whichever profile is selected. **Important honesty note:** these
+ 5 verticals are demo profiles we built, **not** an official TikTok
+  taxonomy — TikTok does not publish an exhaustive global directory of
+  LIVE communities, and availability varies by region, account and
+  device. See `DEVELOPMENT_LOG.md` Phase 5 for the compliance reasoning.
+- **Mandatory community guidelines gate:** before any LIVE starts,
+  `AudienceBridgeScreen.tsx` shows a blocking modal the creator **must**
+  accept ("Entendido, ir LIVE") — it cannot be skipped. The text:
+
+  > ### ⚠️ Antes de hacer LIVE
+  > * 🚫 **Nada de desnudos, contenido sexual o violencia explícita.**
+  > * 🚫 **No insultes, amenaces, acoses ni discrimines a otras personas.**
+  > * ⚠️ **No hagas retos o actividades peligrosas, ilegales o que puedan causar daño.**
+  > * 🎁 **No engañes a tu audiencia ni manipules regalos, ventas, vistas o interacciones.**
+  > * 📵 **No transmitas contenido pregrabado, robado o de terceros sin autorización.**
+  >
+  > **Incumplir estas reglas puede resultar en una advertencia, la interrupción del LIVE o restricciones en tu cuenta.**
 - **Optional:** drop an `OPENAI_API_KEY` into `.env.local` if you want to
   see the real AI-generated runsheets instead of the local mocks. Without
   it, the app quietly falls back to the mocks — that's expected, not
-  broken (see `PRD.md`, Section 4.3).
+  broken (see `PRD.md`, Section 4.3). *(Note: the planned migration to
+  Gemini 1.5 Flash is not yet wired — see Section 5.)*
 - **If you want to skip around instead of playing through the whole
   flow:** hit `Shift + D` on any screen. That opens a panel that lets you
   jump straight to any stage, force a Copilot suggestion instead of
@@ -136,9 +166,38 @@ wrong.
 ## 5. Where the MVP still falls short
 
 Short version: this is front-end complete and nothing else yet. No real
-backend, no tests, no analytics, no auth. The full breakdown is in the
-chat response that came with this doc, sorted by how much it'd hurt to
-ship without it.
+backend, no tests, no analytics, no auth.
+
+**Phase 5 (vertical SDK) — what's done vs. what's still open:**
+
+- [x] In-memory `TikTokSDK` adapter (`lib/tiktok-sdk/`) with simulated
+  latency, no real backend.
+- [x] 5 complete vertical profiles (Beauty, Fashion, Food, DIY,
+  Electronics) with creator, video, chat pool, gift goal, Copilot cues.
+- [x] `activeVertical` + `setActiveVertical` in the Zustand store.
+- [x] All UI screens consume dynamic SDK data instead of hardcoded
+  `lib/data.ts` imports.
+- [x] `npx tsc --noEmit` passes clean.
+- [ ] **Gemini migration:** the runsheet API route
+  (`app/api/generate-runsheet/route.ts`) still calls OpenAI
+  `gpt-4o-mini`. The move to `gemini-1.5-flash` with vertical-aware
+  prompting is **not** wired — `@ai-sdk/google` isn't installed and no
+  `GEMINI_API_KEY` is configured. The route still degrades silently to
+  SDK mocks, so the demo works either way.
+- [ ] **God Mode vertical selector:** `GodModeDrawer.tsx` doesn't yet
+  expose a picker. The store has the setter but nothing reads it to
+  rebuild the session.
+- [ ] **Reactive session rebuild:** `app/page.tsx` bootstraps the
+  session once with the default vertical; it doesn't yet watch
+  `activeVertical` to recreate the session + reconnect the chat
+  channel without a page reload.
+- [ ] **Runsheet type unification:** the SDK uses
+  `"qa" | "goal" | "immersive"` while the AI route validates
+  `"qa" | "goal" | "cookalong"`. Needs one canonical type.
+- [ ] **Lint:** 1 error (`set-state-in-effect` in `ForYouScreen.tsx`)
+  + 6 unused-export warnings in `lib/tiktok-sdk/index.ts`.
+
+The full breakdown of remaining gaps is in `DEVELOPMENT_LOG.md`, Phase 5.
 
 ---
 
@@ -146,10 +205,15 @@ ship without it.
 
 - [x] Whole flow works end to end (Feed → Runsheet → Waiting Room → LIVE
   Room → Recap)
+- [x] 5 content verticals behind an in-memory SDK adapter
+  (`lib/tiktok-sdk/`)
 - [x] `PRD.md` — what we're building and why
 - [x] `DEVELOPMENT_LOG.md` — how we actually built it, prompts included
 - [x] `CHANGELOG.md` — what changed, for anyone tracking it
 - [x] `HACKATHON_SUBMISSION.md` — this doc
+- [x] `FLOW.md` — process flow + creator journey diagram
+- [ ] Gemini 1.5 Flash migration for the runsheet API
+- [ ] God Mode vertical selector + reactive session rebuild
 - [ ] Real, verified demo URL for judges (waiting on the team to confirm)
 - [ ] Alan / Farid / Ana Maria adding their own specific artifacts to
   Section 2.1

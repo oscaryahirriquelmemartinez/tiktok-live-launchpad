@@ -98,11 +98,18 @@ export const BRIDGE_TARGET = 1847;
 export const BRIDGE_AVATARS = ["🧑‍🍳", "😍", "🍜", "🔥", "🐱", "💖", "🥑", "✨"];
 
 // ---------------------------------------------------------------------------
-// LIVE · guion de chat preprogramado (bucle) + cues del Copilot
+// LIVE · motor de chat orgánico (100% procedimental, sin guion ni websockets)
 // ---------------------------------------------------------------------------
+//
+// En vez de un guion fijo en bucle (que se sentía robótico y repetitivo),
+// generamos eventos de chat al vuelo combinando: un pool masivo (150-200+)
+// de mensajes diversos, un generador de usernames creíbles, un puñado de
+// "regulares" recurrentes para dar sensación de continuidad, y un catálogo
+// de regalos con probabilidades realistas (muchas rosas, pocos regalos caros).
+// Ver `useOrganicChat` en lib/hooks.ts para la cadencia estocástica.
 
 export type ChatEvent = {
-  at: number; // segundos desde el inicio del LIVE (dentro del bucle)
+  at: number; // legado: usado solo por eventos manuales (Copilot, God Mode)
   kind: "chat" | "gift" | "join";
   user: string;
   avatar: string;
@@ -111,36 +118,176 @@ export type ChatEvent = {
   gift?: { name: string; emoji: string; count: number; diamonds: number };
 };
 
-export const CHAT_SCRIPT: ChatEvent[] = [
-  { at: 1, kind: "join", user: "sofi.badilla", avatar: "😄", hue: 280 },
-  { at: 1.6, kind: "chat", user: "sofi.badilla", avatar: "😄", hue: 280, text: "llegué del video de la pasta 🍝🍝" },
-  { at: 2.4, kind: "join", user: "el_tomi", avatar: "🔥", hue: 20 },
-  { at: 3, kind: "chat", user: "camigrl", avatar: "💖", hue: 330, text: "RECETA PORFAVOR 🙏" },
-  { at: 3.8, kind: "chat", user: "el_tomi", avatar: "🔥", hue: 20, text: "la receta completa porfa!!" },
-  { at: 4.6, kind: "chat", user: "nico.eats", avatar: "🥑", hue: 140, text: "receta receta receta" },
-  { at: 5.4, kind: "chat", user: "pau.rdz", avatar: "✨", hue: 200, text: "vengo del viral 😍 qué crema usaste?" },
-  { at: 8, kind: "join", user: "lauta.mx", avatar: "🦁", hue: 45 },
-  { at: 9.5, kind: "gift", user: "lauta.mx", avatar: "🦁", hue: 45, gift: { name: "Rosa", emoji: "🌹", count: 5, diamonds: 5 } },
-  { at: 11, kind: "chat", user: "sofi.badilla", avatar: "😄", hue: 280, text: "se ve increíble 😭" },
-  { at: 12.5, kind: "chat", user: "ferchef", avatar: "🧑‍🍳", hue: 100, text: "buen tip el del agua de cocción 👏" },
-  { at: 15, kind: "chat", user: "maria.fit", avatar: "🐱", hue: 170, text: "¿se puede hacer sin crema? 🤔" },
-  { at: 17, kind: "chat", user: "camigrl", avatar: "💖", hue: 330, text: "jajaja el gato atrás 😂" },
-  { at: 19, kind: "gift", user: "rosa.vlc", avatar: "🌺", hue: 300, gift: { name: "Dona", emoji: "🍩", count: 2, diamonds: 60 } },
-  { at: 21, kind: "join", user: "diego_af", avatar: "🎧", hue: 220 },
-  { at: 22, kind: "chat", user: "diego_af", avatar: "🎧", hue: 220, text: "somos como 3 mil acá adentro 😳" },
-  { at: 24, kind: "chat", user: "nico.eats", avatar: "🥑", hue: 140, text: "cuánto parmesano le pusiste?" },
-  { at: 26.5, kind: "gift", user: "el_tomi", avatar: "🔥", hue: 20, gift: { name: "León", emoji: "🦁", count: 1, diamonds: 400 } },
-  { at: 28.5, kind: "chat", user: "pau.rdz", avatar: "✨", hue: 200, text: "EL LEÓN 😱😱😱" },
-  { at: 30, kind: "chat", user: "ferchef", avatar: "🧑‍🍳", hue: 100, text: "primera vez que la veo en vivo, un 10" },
-  { at: 33, kind: "join", user: "vale.snz", avatar: "🌈", hue: 260 },
-  { at: 34, kind: "chat", user: "vale.snz", avatar: "🌈", hue: 260, text: "me trajo la notificación 😍" },
-  { at: 36, kind: "chat", user: "maria.fit", avatar: "🐱", hue: 170, text: "haz la versión picante 🌶️" },
-  { at: 38.5, kind: "gift", user: "sofi.badilla", avatar: "😄", hue: 280, gift: { name: "Rosa", emoji: "🌹", count: 12, diamonds: 12 } },
-  { at: 41, kind: "chat", user: "diego_af", avatar: "🎧", hue: 220, text: "quedé con hambre, ya vuelvo 🏃" },
-  { at: 43, kind: "chat", user: "camigrl", avatar: "💖", hue: 330, text: "sigue así!! está buenísimo el live" },
+export function randomInt(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function pick<T>(arr: readonly T[]): T {
+  return arr[randomInt(0, arr.length - 1)];
+}
+
+// ---- Usernames -------------------------------------------------------------
+
+const USERNAME_STEMS = [
+  "user", "maria", "juan", "valen", "santi", "camila", "nico", "sofi", "diego",
+  "pau", "fer", "rosa", "lauta", "mica", "tomas", "flor", "male", "coty",
+  "bruno", "renzo", "jose", "ana", "gaby", "leo", "isa", "kevin", "yani",
+  "naty", "rodri", "juanperez", "carla", "emi", "bel", "dani", "cris", "fabi",
+  "ceci", "lucia", "martina", "facu", "vale", "ivan", "checo", "pame", "aless",
 ];
 
-export const CHAT_LOOP_SECONDS = 46;
+const USERNAME_SUFFIXES = [
+  "", "", "_", ".gzz", ".rdz", ".ok", "cocina", "fit", "eats", "vlc", "_af",
+  "snz", ".oficial", "_tv", "_mx", "_ar", "_cl", "_co", "22", "23",
+];
+
+/** Genera un handle creíble ("user84729", "maria.gzz", "juanperez_23"...). */
+export function generateUsername(): string {
+  const stem = pick(USERNAME_STEMS);
+  const suffix = pick(USERNAME_SUFFIXES);
+  const withNumber = Math.random() > 0.45;
+  return `${stem}${suffix}${withNumber ? randomInt(1, 99999) : ""}`;
+}
+
+export const AUDIENCE_AVATARS = [
+  "😄", "🔥", "💖", "🥑", "✨", "🦁", "🐱", "🌈", "🎧", "🌺", "🧑‍🍳", "🤩",
+  "😎", "🥳", "👀", "🙌", "🌻", "🍀", "⭐", "🦋", "😻", "🐸", "🍕", "🎈",
+];
+
+/** Espectadores "regulares" que reaparecen para dar sensación de continuidad. */
+type RegularViewer = { handle: string; avatar: string; hue: number };
+const REGULAR_VIEWERS: RegularViewer[] = [
+  { handle: "sofi.badilla", avatar: "😄", hue: 280 },
+  { handle: "el_tomi", avatar: "🔥", hue: 20 },
+  { handle: "camigrl", avatar: "💖", hue: 330 },
+  { handle: "nico.eats", avatar: "🥑", hue: 140 },
+  { handle: "pau.rdz", avatar: "✨", hue: 200 },
+  { handle: "lauta.mx", avatar: "🦁", hue: 45 },
+  { handle: "ferchef", avatar: "🧑‍🍳", hue: 100 },
+  { handle: "maria.fit", avatar: "🐱", hue: 170 },
+  { handle: "rosa.vlc", avatar: "�", hue: 300 },
+  { handle: "diego_af", avatar: "🎧", hue: 220 },
+  { handle: "vale.snz", avatar: "🌈", hue: 260 },
+];
+
+/** Devuelve {user, avatar, hue}: 40% un regular recurrente, 60% alguien nuevo. */
+function randomIdentity(): { user: string; avatar: string; hue: number } {
+  if (Math.random() < 0.4) {
+    const r = pick(REGULAR_VIEWERS);
+    return { user: r.handle, avatar: r.avatar, hue: r.hue };
+  }
+  return { user: generateUsername(), avatar: pick(AUDIENCE_AVATARS), hue: randomInt(0, 359) };
+}
+
+// ---- Pool masivo de mensajes (150-200+) ------------------------------------
+
+const REACTION_LINES = [
+  "wow", "no puede ser", "que rico se ve", "estoy llorando", "necesito esa receta",
+  "primera vez que te veo en vivo", "me trajo la notificación", "llegué del video viral",
+  "esto es oro", "en serio esto sale tan rico?", "se ve buenísimo", "hambre a las 3am por tu culpa",
+  "esto hay que intentarlo", "sos una genia", "dónde compraste esa olla", "el gato roba cámara �",
+  "la crema se ve perfecta", "yo también uso ajo así", "cuánto cuesta hacerla", "grande valen",
+  "no sabía que cocinabas tan bien", "esto se hizo viral por algo", "justo lo que buscaba",
+  "guardando este live", "screenshot a la receta", "esto es mejor que un restaurante",
+  "hola desde argentina 🇦🇷", "hola desde mexico �🇽", "hola desde colombia 🇨🇴", "hola desde chile 🇨🇱",
+  "hola desde peru 🇵🇪", "se me hace agua la boca", "esto necesita más ajo", "yo le pondría más queso",
+  "la textura se ve perfecta", "cuánto rinde la receta", "sirve para cuántas personas",
+  "puedo usar otra pasta", "esto es más facil de lo que pensé", "creo que lo voy a intentar hoy",
+  "recién llegué que me perdí", "alguien tiene el resumen", "no manden spam porfa",
+  "el chat va muy rápido jajaja", "no alcanzo a leer todo", "salu2 desde el trabajo escondido",
+  "en la oficina viendo esto en secreto", "esto debería ser ilegal de rico", "receta porfavor 🙏",
+  "la receta completa porfa!!", "receta receta receta", "vengo del viral 😍 qué crema usaste?",
+  "buen tip el del agua de cocción 👏", "jajaja el gato atrás 😂", "somos como 3 mil acá adentro 😳",
+  "cuánto parmesano le pusiste?", "primera vez que la veo en vivo, un 10", "me trajo la notificación 😍",
+  "haz la versión picante 🌶️", "quedé con hambre, ya vuelvo 🏃", "sigue así!! está buenísimo el live",
+];
+
+const QUESTION_LINES = [
+  "¿se puede hacer sin crema?", "¿cuánto tiempo se cocina la pasta?", "¿qué tipo de queso usaste?",
+  "¿esto rinde para cuántas personas?", "¿se puede congelar?", "¿sirve con otra pasta?",
+  "¿cuánto ajo le pusiste en total?", "¿se puede hacer vegano?", "¿qué marca de crema usas?",
+  "¿esto es para cuántos minutos de cocción?", "¿puedo usar leche en vez de crema?",
+  "¿el parmesano es necesario?", "¿a qué hora empezaste a cocinar?", "¿vas a subir la receta escrita?",
+  "¿cuál es el secreto de la textura?", "¿se puede hacer con pasta integral?",
+  "¿cuántas calorías tiene?", "¿puedo hacerlo sin gluten?", "¿qué perejil usaste, fresco o seco?",
+  "¿vendes cursos de cocina?",
+];
+
+const EMOJI_CHAIN_UNITS = ["🔥", "😭", "💀", "❤️", "🙏", "👏", "😍", "🤤", "✨", "😂", "🌹", "💖", "😱", "🥵", "💯"];
+
+function buildEmojiChains(): string[] {
+  const chains: string[] = [];
+  for (const e of EMOJI_CHAIN_UNITS) {
+    chains.push(e.repeat(2), e.repeat(3));
+  }
+  return chains; // 15 * 2 = 30 combinaciones
+}
+
+/** Multiplica el pool base con variantes (mayúsculas, énfasis) sin perder naturalidad. */
+function buildChatMessagePool(): string[] {
+  const emphasis = REACTION_LINES.map((r) => `${r}!!`);
+  const shouting = REACTION_LINES.filter((r) => r.length <= 22 && !/[🙏😹���]/u.test(r)).map((r) =>
+    r.toUpperCase()
+  );
+  return [...REACTION_LINES, ...QUESTION_LINES, ...buildEmojiChains(), ...emphasis, ...shouting];
+}
+
+/** Pool masivo de mensajes de chat: 150-200+ variantes generadas programáticamente. */
+export const CHAT_MESSAGE_POOL: string[] = buildChatMessagePool();
+
+// ---- Catálogo de regalos ----------------------------------------------------
+
+type GiftKind = { name: string; emoji: string; diamondsPerUnit: number };
+
+const GIFT_CATALOG: GiftKind[] = [
+  { name: "Rosa", emoji: "🌹", diamondsPerUnit: 1 },
+  { name: "Corazón", emoji: "💗", diamondsPerUnit: 5 },
+  { name: "Helado", emoji: "🍦", diamondsPerUnit: 10 },
+  { name: "Dona", emoji: "�", diamondsPerUnit: 30 },
+  { name: "León", emoji: "🦁", diamondsPerUnit: 400 },
+  { name: "Cohete", emoji: "🚀", diamondsPerUnit: 500 },
+  { name: "Universo", emoji: "🌌", diamondsPerUnit: 1000 },
+];
+
+/** Regalos de alto valor reservados para momentos especiales (God Mode: Viral Surge). */
+const HIGH_VALUE_GIFTS = GIFT_CATALOG.filter((g) => g.diamondsPerUnit >= 400);
+
+function randomGift(): { name: string; emoji: string; count: number; diamonds: number } {
+  // 85% rosas esporádicas de bajo valor, 15% algo del catálogo variado.
+  if (Math.random() < 0.85) {
+    const count = randomInt(1, 20);
+    return { name: "Rosa", emoji: "🌹", count, diamonds: count };
+  }
+  const g = pick(GIFT_CATALOG.slice(1));
+  const count = randomInt(1, 3);
+  return { name: g.name, emoji: g.emoji, count, diamonds: g.diamondsPerUnit * count };
+}
+
+/** Genera un evento de chat aleatorio: mayormente comentarios, algo de joins, poco de regalos. */
+export function generateRandomChatEvent(): ChatEvent {
+  const identity = randomIdentity();
+  const roll = Math.random();
+
+  if (roll < 0.1) {
+    return { at: 0, kind: "join", ...identity };
+  }
+  if (roll < 0.16) {
+    return { at: 0, kind: "gift", ...identity, gift: randomGift() };
+  }
+  return { at: 0, kind: "chat", ...identity, text: pick(CHAT_MESSAGE_POOL) };
+}
+
+/** Regalo de alto valor para el "Viral Surge" de God Mode. */
+export function generateViralSurgeGift(): ChatEvent {
+  const identity = randomIdentity();
+  const g = pick(HIGH_VALUE_GIFTS);
+  return {
+    at: 0,
+    kind: "gift",
+    ...identity,
+    gift: { name: g.name, emoji: g.emoji, count: 1, diamonds: g.diamondsPerUnit },
+  };
+}
 
 export type CopilotCue = {
   at: number;

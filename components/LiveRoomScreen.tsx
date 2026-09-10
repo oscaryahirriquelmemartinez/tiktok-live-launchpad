@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BellOff,
@@ -15,16 +15,20 @@ import {
 } from "lucide-react";
 import { Avatar, StatusBar, VideoBackdrop } from "@/components/chrome";
 import {
-  CHAT_LOOP_SECONDS,
-  CHAT_SCRIPT,
   ChatEvent,
-  COPILOT_ACTIONS,
-  CREATOR,
-  GIFT_GOAL,
+  Creator,
+  CopilotActionMap,
+  CopilotCue,
+  generateViralSurgeGift,
+  HighlightedQuestion,
+  MAX_CHAT_NODES,
+  randomInt,
   RunsheetFormat,
-} from "@/lib/data";
+  TikTokSDK,
+  ViewerChannel,
+} from "@/lib/tiktok-sdk";
 import { dots, mmss } from "@/lib/format";
-import { useCopilotMessages, useInterval } from "@/lib/hooks";
+import { useCopilotMessages, useInterval, useOrganicChat } from "@/lib/hooks";
 import { useLiveStore } from "@/lib/store";
 
 export type LiveStats = {
@@ -35,17 +39,19 @@ export type LiveStats = {
 };
 
 type Props = {
+  sessionId: string;
+  creator: Creator;
+  giftGoal: number;
   format: RunsheetFormat;
   startViewers: number;
   onEnd: (stats: LiveStats) => void;
 };
 
 type Message = { id: number; ev: ChatEvent; creator?: boolean };
-type HeartParticle = { id: number; x: number; drift: number; size: number; pink: boolean };
 
 const CONFETTI = ["🎉", "🌹", "✨", "🎊", "💎", "🌹", "✨", "🎉", "💖", "🎊", "🌹", "✨"];
 
-export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
+export function LiveRoomScreen({ sessionId, creator, giftGoal, format, startViewers, onEnd }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [viewers, setViewers] = useState(startViewers);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -55,7 +61,6 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
   const [roses, setRoses] = useState(87);
   const [diamonds, setDiamonds] = useState(214);
   const [giftBanner, setGiftBanner] = useState<ChatEvent | null>(null);
-  const [hearts, setHearts] = useState<HeartParticle[]>([]);
   const [confetti, setConfetti] = useState(false);
   const [endConfirm, setEndConfirm] = useState(false);
   const [copilotDone, setCopilotDone] = useState(0);
@@ -64,46 +69,90 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
   // Estado global persistido: categorías silenciadas del Copilot (opt-out)
   const mutedCategories = useLiveStore((s) => s.mutedCategories);
   const muteCategory = useLiveStore((s) => s.muteCategory);
+  // Vertical activa (Beauty/Fashion/Food/DIY/Electronics): God Mode puede
+  // cambiarla en cualquier momento, incluso con la sala ya abierta, y el
+  // chat orgánico + el Copilot deben reflejarlo de inmediato.
+  const activeVertical = useLiveStore((s) => s.activeVertical);
+
+  // ---- Contenido dependiente de la vertical (Copilot + canal de viewer) --
+  const [cues, setCues] = useState<CopilotCue[]>([]);
+  const [actions, setActions] = useState<CopilotActionMap | null>(null);
+  const [highlightedQuestion, setHighlightedQuestion] = useState<HighlightedQuestion | null>(null);
+  const [channel, setChannel] = useState<ViewerChannel | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const [nextCues, nextActions, nextQuestion, nextChannel] = await Promise.all([
+        TikTokSDK.Copilot.getCues(activeVertical),
+        TikTokSDK.Copilot.getActions(activeVertical),
+        TikTokSDK.Copilot.getHighlightedQuestion(activeVertical),
+        TikTokSDK.Viewer.connect(sessionId, activeVertical),
+      ]);
+      if (!active) return;
+      setCues(nextCues);
+      setActions(nextActions);
+      setHighlightedQuestion(nextQuestion);
+      setChannel(nextChannel);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [sessionId, activeVertical]);
 
   // Copilot con cadencia relajada (~17 s) que respeta la lista negra
-  const { cue, cueSeq, dismiss } = useCopilotMessages({
+  const { cue, cueSeq, dismiss, trigger } = useCopilotMessages({
+    cues,
     muted: mutedCategories,
     skip: { pin: !!pinned, goal: goalAnnounced },
   });
 
-  const clockRef = useRef(0);
+  // God Mode (Shift+D): permite forzar la próxima sugerencia del Copilot
+  // sin esperar la cadencia de 17 s, para poder mostrar la demo a voluntad.
+  useEffect(() => {
+    const onForce = () => trigger();
+    window.addEventListener("godmode:trigger-copilot", onForce);
+    return () => window.removeEventListener("godmode:trigger-copilot", onForce);
+  }, [trigger]);
+
   const idRef = useRef(0);
   const maxViewersRef = useRef(startViewers);
-  const firedChat = useRef(new Set<number>());
   const chatBoxRef = useRef<HTMLDivElement>(null);
 
-  const pushMessage = (ev: ChatEvent, creator = false) =>
-    setMessages((m) => [...m, { id: ++idRef.current, ev, creator }].slice(-22));
+  const pushMessage = useCallback(
+    (ev: ChatEvent, creator = false) =>
+      setMessages((m) => [...m, { id: ++idRef.current, ev, creator }].slice(-MAX_CHAT_NODES)),
+    []
+  );
 
-  // ---- Reloj maestro del guion (bucle infinito) --------------------------
-  useInterval(() => {
-    const prevLoop = clockRef.current % CHAT_LOOP_SECONDS;
-    clockRef.current += 0.25;
-    const loopT = clockRef.current % CHAT_LOOP_SECONDS;
-    if (loopT < prevLoop) {
-      firedChat.current.clear();
-    }
-
-    CHAT_SCRIPT.forEach((ev, i) => {
-      if (ev.at <= loopT && !firedChat.current.has(i)) {
-        firedChat.current.add(i);
-        pushMessage(ev);
-        if (ev.kind === "gift" && ev.gift) {
-          setDiamonds((d) => d + ev.gift!.diamonds);
-          if (ev.gift.name === "Rosa") setRoses((r) => r + ev.gift!.count);
-          if (ev.gift.diamonds >= 60) {
-            setGiftBanner(ev);
-            setTimeout(() => setGiftBanner(null), 3400);
-          }
+  // ---- Chat orgánico: cobra vida un evento a la vez (o en ráfagas) --------
+  const handleChatEvent = useCallback(
+    (ev: ChatEvent) => {
+      pushMessage(ev);
+      if (ev.kind === "gift" && ev.gift) {
+        setDiamonds((d) => d + ev.gift!.diamonds);
+        if (ev.gift.name === "Rosa") setRoses((r) => r + ev.gift!.count);
+        if (ev.gift.diamonds >= 60) {
+          setGiftBanner(ev);
+          setTimeout(() => setGiftBanner(null), 3400);
         }
       }
-    });
-  }, 250);
+    },
+    [pushMessage]
+  );
+
+  const { surge: surgeChat } = useOrganicChat({ channel, onEvent: handleChatEvent });
+
+  // God Mode: "Forzar Ráfaga Viral" → 15 mensajes en ~1 s + 1 regalo caro.
+  // El burst de 20 corazones lo maneja HeartsField (escucha el mismo evento).
+  useEffect(() => {
+    const onSurge = () => {
+      surgeChat(15, 1000);
+      handleChatEvent(generateViralSurgeGift());
+    };
+    window.addEventListener("godmode:viral-surge", onSurge);
+    return () => window.removeEventListener("godmode:viral-surge", onSurge);
+  }, [surgeChat, handleChatEvent]);
 
   // ---- Métricas vivas -----------------------------------------------------
   useInterval(() => setElapsed((e) => e + 1), 1000);
@@ -114,14 +163,6 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
       return next;
     });
   }, 900);
-  useInterval(() => {
-    const id = ++idRef.current;
-    setHearts((h) => [
-      ...h.slice(-9),
-      { id, x: Math.random() * 26 - 13, drift: Math.random() * 44 - 22, size: 16 + Math.random() * 14, pink: Math.random() > 0.4 },
-    ]);
-    setTimeout(() => setHearts((h) => h.filter((p) => p.id !== id)), 2500);
-  }, 620);
 
   // Auto-scroll del chat
   useEffect(() => {
@@ -130,16 +171,16 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
 
   // ---- Acción del Copilot -------------------------------------------------
   const runCueAction = () => {
-    if (!cue) return;
-    const fx = COPILOT_ACTIONS[cue.id];
+    if (!cue || !actions) return;
+    const fx = actions[cue.id];
     if (fx.pin) setPinned(fx.pin);
     if (fx.chat)
       pushMessage(
-        { at: 0, kind: "chat", user: CREATOR.handle, avatar: CREATOR.emoji, hue: 12, text: fx.chat },
+        { at: 0, kind: "chat", user: creator.handle, avatar: creator.emoji, hue: 12, text: fx.chat },
         true
       );
-    if (cue.id === "question") {
-      setQuestion({ user: "maria.fit", text: "¿se puede hacer sin crema? 🤔" });
+    if (cue.id === "question" && highlightedQuestion) {
+      setQuestion(highlightedQuestion);
       setTimeout(() => setQuestion(null), 6000);
     }
     if (cue.id === "goal") {
@@ -169,7 +210,7 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
       followers: Math.round(maxViewersRef.current * 0.16),
     });
 
-  const rosesPct = Math.min(100, (roses / GIFT_GOAL) * 100);
+  const rosesPct = Math.min(100, (roses / giftGoal) * 100);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-black">
@@ -182,9 +223,9 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
       {/* ---- Cabecera de la sala ---- */}
       <div className="absolute inset-x-0 top-11 z-30 flex items-center gap-2 px-3 py-1.5">
         <div className="flex items-center gap-2 rounded-full bg-black/40 py-1 pl-1 pr-3 backdrop-blur">
-          <Avatar emoji={CREATOR.emoji} hue={12} size={30} />
+          <Avatar emoji={creator.emoji} hue={12} size={30} />
           <div className="leading-tight">
-            <p className="text-[12.5px] font-bold">{CREATOR.handle}</p>
+            <p className="text-[12.5px] font-bold">{creator.handle}</p>
             <p className="text-[10px] text-white/60">{dots(diamonds)} 💎</p>
           </div>
         </div>
@@ -209,7 +250,15 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
         </div>
       </div>
 
-      {/* ---- Stack superior: Copilot (anclado arriba) + meta + fijado ---- */}
+      {/*
+        ---- Stack superior dinámico ----
+        Un único flex container apila TODOS los overlays de la sala
+        (Copilot, opt-out, meta de regalos, fijado, banner de regalo grande
+        y pregunta destacada) en flujo normal. Esto elimina los `top-[Npx]`
+        absolutos que colisionaban entre sí cuando dos overlays coincidían
+        (p. ej. un regalo grande mientras la meta ya estaba anunciada).
+        `layout` en cada hijo anima el reflow cuando algo entra/sale.
+      */}
       <div className="absolute inset-x-3 top-[94px] z-30 flex flex-col gap-2">
         {/* LIVE Copilot: entra deslizándose desde arriba, sin tapar la cara */}
         <AnimatePresence mode="popLayout">
@@ -300,7 +349,7 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
                 />
               </div>
               <span className="text-[11px] font-bold tabular-nums text-white/85">
-                {roses}/{GIFT_GOAL} · secreto 🤫
+                {roses}/{giftGoal} · secreto 🤫
               </span>
             </motion.div>
           )}
@@ -321,50 +370,52 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
-      {/* ---- Banner de regalo grande ---- */}
-      <AnimatePresence>
-        {giftBanner?.gift && (
-          <motion.div
-            initial={{ x: -280, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 320, opacity: 0 }}
-            transition={{ type: "spring", damping: 18 }}
-            className="absolute left-3 top-[248px] z-20 flex items-center gap-2 rounded-full bg-gradient-to-r from-tt-pink/85 to-[#7a2bfe]/85 py-1.5 pl-1.5 pr-4 backdrop-blur"
-          >
-            <Avatar emoji={giftBanner.avatar} hue={giftBanner.hue} size={28} />
-            <div className="leading-tight">
-              <p className="text-[11.5px] font-bold">@{giftBanner.user}</p>
-              <p className="text-[10.5px] text-white/85">
-                envió {giftBanner.gift.name} ×{giftBanner.gift.count}
+        {/* Banner de regalo grande: ahora apilado, ya no flota sobre otros overlays */}
+        <AnimatePresence>
+          {giftBanner?.gift && (
+            <motion.div
+              layout
+              initial={{ x: -280, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 320, opacity: 0 }}
+              transition={{ type: "spring", damping: 18 }}
+              className="flex items-center gap-2 self-start rounded-full bg-gradient-to-r from-tt-pink/85 to-[#7a2bfe]/85 py-1.5 pl-1.5 pr-4 backdrop-blur"
+            >
+              <Avatar emoji={giftBanner.avatar} hue={giftBanner.hue} size={28} />
+              <div className="leading-tight">
+                <p className="text-[11.5px] font-bold">@{giftBanner.user}</p>
+                <p className="text-[10.5px] text-white/85">
+                  envió {giftBanner.gift.name} ×{giftBanner.gift.count}
+                </p>
+              </div>
+              <span className="ml-1 text-[22px]">{giftBanner.gift.emoji}</span>
+              <span className="text-[11px] font-black text-yellow-200">
+                +{giftBanner.gift.diamonds} 💎
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Pregunta destacada: apilada en el mismo flujo, centrada al 78% */}
+        <AnimatePresence>
+          {question && (
+            <motion.div
+              layout
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.94 }}
+              className="mx-auto w-[78%] rounded-2xl border border-tt-cyan/40 bg-black/70 p-3.5 text-center backdrop-blur-md"
+            >
+              <p className="mb-1 text-[10px] font-black tracking-[0.16em] text-tt-cyan">
+                PREGUNTA DESTACADA
               </p>
-            </div>
-            <span className="ml-1 text-[22px]">{giftBanner.gift.emoji}</span>
-            <span className="text-[11px] font-black text-yellow-200">
-              +{giftBanner.gift.diamonds} 💎
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ---- Pregunta destacada ---- */}
-      <AnimatePresence>
-        {question && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.94 }}
-            className="absolute left-1/2 top-[300px] z-20 w-[78%] -translate-x-1/2 rounded-2xl border border-tt-cyan/40 bg-black/70 p-3.5 text-center backdrop-blur-md"
-          >
-            <p className="mb-1 text-[10px] font-black tracking-[0.16em] text-tt-cyan">
-              PREGUNTA DESTACADA
-            </p>
-            <p className="text-[15px] font-bold leading-snug">«{question.text}»</p>
-            <p className="mt-1 text-[11px] text-white/55">@{question.user}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <p className="text-[15px] font-bold leading-snug">«{question.text}»</p>
+              <p className="mt-1 text-[11px] text-white/55">@{question.user}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* ---- Confetti ---- */}
       {confetti && (
@@ -399,28 +450,8 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
         ))}
       </div>
 
-      {/* ---- Corazones flotantes ---- */}
-      <div className="pointer-events-none absolute bottom-[70px] right-7 z-20">
-        <AnimatePresence>
-          {hearts.map((h) => (
-            <motion.span
-              key={h.id}
-              className="absolute bottom-0 right-0"
-              initial={{ y: 0, x: h.x, opacity: 0.95, scale: 0.6 }}
-              animate={{ y: -250, x: h.x + h.drift, opacity: 0, scale: 1.05 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 2.4, ease: "easeOut" }}
-            >
-              <Heart
-                size={h.size}
-                strokeWidth={0}
-                fill={h.pink ? "#fe2c55" : "#ffffff"}
-                style={{ opacity: h.pink ? 1 : 0.85 }}
-              />
-            </motion.span>
-          ))}
-        </AnimatePresence>
-      </div>
+      {/* ---- Corazones flotantes: componente aislado, no re-renderiza la sala ---- */}
+      <HeartsField />
 
       {/* ---- Barra inferior ---- */}
       <div className="absolute inset-x-0 bottom-0 z-30 flex items-center gap-2 px-3 pb-4 pt-1">
@@ -482,7 +513,10 @@ export function LiveRoomScreen({ format, startViewers, onEnd }: Props) {
   );
 }
 
-function ChatRow({ msg }: { msg: Message }) {
+// React.memo: cada fila solo se re-renderiza si su propio `msg` cambia de
+// identidad. Como los mensajes viejos nunca se mutan (solo se agregan o se
+// recortan del array), esto evita re-pintar el chat completo en cada evento.
+const ChatRow = memo(function ChatRow({ msg }: { msg: Message }) {
   const { ev, creator } = msg;
   return (
     <motion.div
@@ -519,4 +553,92 @@ function ChatRow({ msg }: { msg: Message }) {
       </div>
     </motion.div>
   );
+});
+
+// ---------------------------------------------------------------------------
+// HeartsField · corazones flotantes 100% aislados.
+// Mantiene su propio estado y su propio intervalo: los ticks de esta
+// animación NUNCA re-renderizan LiveRoomScreen ni el chat. Cada corazón es
+// un nodo `motion.span` con una curva (keyframes de x/y/scale/opacity) y se
+// desmonta solo al terminar su recorrido, así el DOM nunca se satura.
+// ---------------------------------------------------------------------------
+
+type HeartParticle = {
+  id: number;
+  x: number;
+  midDrift: number;
+  drift: number;
+  size: number;
+  pink: boolean;
+  duration: number;
+};
+
+function spawnHeart(id: number): HeartParticle {
+  return {
+    id,
+    x: randomInt(-14, 14),
+    midDrift: randomInt(-24, 24),
+    drift: randomInt(-36, 36),
+    size: 15 + Math.random() * 17,
+    pink: Math.random() > 0.35,
+    duration: 1.9 + Math.random() * 1.3,
+  };
 }
+
+const HeartsField = memo(function HeartsField() {
+  const [hearts, setHearts] = useState<HeartParticle[]>([]);
+  const idRef = useRef(0);
+
+  useInterval(() => {
+    const id = ++idRef.current;
+    setHearts((h) => [...h.slice(-13), spawnHeart(id)]);
+    setTimeout(() => setHearts((h) => h.filter((p) => p.id !== id)), 3400);
+  }, 420);
+
+  // God Mode: "Forzar Ráfaga Viral" → 20 corazones simultáneos.
+  useEffect(() => {
+    const onSurge = () => {
+      const batch = Array.from({ length: 20 }, () => spawnHeart(++idRef.current));
+      setHearts((h) => [...h.slice(-13), ...batch]);
+      batch.forEach((p) =>
+        setTimeout(() => setHearts((h) => h.filter((x) => x.id !== p.id)), 3400)
+      );
+    };
+    window.addEventListener("godmode:viral-surge", onSurge);
+    return () => window.removeEventListener("godmode:viral-surge", onSurge);
+  }, []);
+
+  return (
+    <div className="pointer-events-none absolute bottom-[70px] right-7 z-20">
+      <AnimatePresence>
+        {hearts.map((h) => (
+          <FloatingHeart key={h.id} particle={h} />
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+});
+
+const FloatingHeart = memo(function FloatingHeart({ particle: h }: { particle: HeartParticle }) {
+  return (
+    <motion.span
+      className="absolute bottom-0 right-0"
+      initial={{ y: 0, x: h.x, opacity: 0.95, scale: 0.55 }}
+      animate={{
+        y: [0, -130, -260],
+        x: [h.x, h.x + h.midDrift, h.x + h.drift],
+        opacity: [0.95, 0.9, 0],
+        scale: [0.55, 1.15, 0.9],
+      }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: h.duration, ease: "easeOut" }}
+    >
+      <Heart
+        size={h.size}
+        strokeWidth={0}
+        fill={h.pink ? "#fe2c55" : "#ffffff"}
+        style={{ opacity: h.pink ? 1 : 0.85 }}
+      />
+    </motion.span>
+  );
+});

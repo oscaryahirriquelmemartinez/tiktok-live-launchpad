@@ -4,10 +4,11 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Radio, TrendingUp, Users, Zap } from "lucide-react";
-import { VIRAL_VIDEO } from "@/lib/data";
+import { ViralVideo } from "@/lib/tiktok-sdk";
 import { compact, dots } from "@/lib/format";
 
 type Props = {
+  viralVideo: ViralVideo;
   open: boolean;
   onAccept: () => void;
   onDismiss: () => void;
@@ -16,7 +17,7 @@ type Props = {
 // Alturas del mini-gráfico de tráfico (últimas 3 h → ahora)
 const BARS = [16, 14, 18, 15, 20, 24, 30, 42, 62, 88];
 
-export function SpikePromptModal({ open, onAccept, onDismiss }: Props) {
+export function SpikePromptModal({ viralVideo, open, onAccept, onDismiss }: Props) {
   return (
     <AnimatePresence>
       {open && (
@@ -70,9 +71,9 @@ export function SpikePromptModal({ open, onAccept, onDismiss }: Props) {
               🚀 Tu video está despegando
             </h2>
             <p className="mb-4 text-[14px] leading-snug text-white/70">
-              <b className="text-white">{compact(VIRAL_VIDEO.views)} vistas</b> en 3 h —{" "}
-              {VIRAL_VIDEO.multiplier}× tu promedio.{" "}
-              <b className="text-white">{dots(VIRAL_VIDEO.watchingNow)} personas</b> lo están
+              <b className="text-white">{compact(viralVideo.views)} vistas</b> en 3 h —{" "}
+              {viralVideo.multiplier}× tu promedio.{" "}
+              <b className="text-white">{dots(viralVideo.watchingNow)} personas</b> lo están
               viendo en este momento.
             </p>
 

@@ -5,43 +5,100 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  AlertTriangle,
+  Ban,
   BellRing,
   Check,
   ChevronLeft,
   ChevronRight,
+  Gift,
   Info,
   Radio,
+  ShieldAlert,
   ShieldCheck,
+  VideoOff,
 } from "lucide-react";
 import { Avatar, StatusBar } from "@/components/chrome";
 import {
   BRIDGE_AVATARS,
   BRIDGE_PHASES,
   BRIDGE_TARGET,
-  CREATOR,
-  MOD_CANDIDATES,
+  Creator,
+  ModCandidate,
   RunsheetFormat,
-  VIRAL_VIDEO,
-} from "@/lib/data";
+  TikTokSDK,
+  ViralVideo,
+} from "@/lib/tiktok-sdk";
 import { compact, dots } from "@/lib/format";
 import { useInterval } from "@/lib/hooks";
 import { useLiveStore } from "@/lib/store";
 
 type Props = {
+  creator: Creator;
+  viralVideo: ViralVideo;
   format: RunsheetFormat;
   onBack: () => void;
   onStart: (viewers: number) => void;
 };
 
-export function AudienceBridgeScreen({ format, onBack, onStart }: Props) {
+// Normas comunitarias mostradas obligatoriamente antes de iniciar cualquier LIVE.
+const LIVE_GUIDELINES: { icon: React.ReactNode; text: string }[] = [
+  {
+    icon: <Ban size={15} className="text-red-400" />,
+    text: "Nada de desnudos, contenido sexual o violencia explícita.",
+  },
+  {
+    icon: <Ban size={15} className="text-red-400" />,
+    text: "No insultes, amenaces, acoses ni discrimines a otras personas.",
+  },
+  {
+    icon: <AlertTriangle size={15} className="text-amber-400" />,
+    text: "No hagas retos o actividades peligrosas, ilegales o que puedan causar daño.",
+  },
+  {
+    icon: <Gift size={15} className="text-tt-pink" />,
+    text: "No engañes a tu audiencia ni manipules regalos, ventas, vistas o interacciones.",
+  },
+  {
+    icon: <VideoOff size={15} className="text-tt-cyan" />,
+    text: "No transmitas contenido pregrabado, robado o de terceros sin autorización.",
+  },
+];
+
+export function AudienceBridgeScreen({ creator, viralVideo, format, onBack, onStart }: Props) {
+  const activeVertical = useLiveStore((s) => s.activeVertical);
   const [count, setCount] = useState(0);
   const [phase, setPhase] = useState(0);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Aviso obligatorio de normas comunitarias: se muestra al presionar
+  // "Iniciar LIVE" y debe aceptarse explícitamente antes de la cuenta regresiva.
+  const [guidelinesOpen, setGuidelinesOpen] = useState(false);
   const moderator = useLiveStore((s) => s.moderator);
   const setModerator = useLiveStore((s) => s.setModerator);
   const ready = count >= 1200;
   const estimating = count < BRIDGE_TARGET;
+
+  // Teaser de la notificación push + candidatos a moderador: dependen del
+  // adaptador del SDK (simula latencia de red, no hace fetch real).
+  const [bridgeTeaser, setBridgeTeaser] = useState(viralVideo.caption);
+  const [modCandidates, setModCandidates] = useState<ModCandidate[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const [bridgeConfig, candidates] = await Promise.all([
+        TikTokSDK.Bridge.getConfig(activeVertical),
+        TikTokSDK.Bridge.getModCandidates(),
+      ]);
+      if (!active) return;
+      setBridgeTeaser(bridgeConfig.teaser);
+      setModCandidates(candidates);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [activeVertical]);
 
   // Rampa rápida hacia el objetivo y luego goteo constante (audiencia "inflada")
   useInterval(
@@ -120,7 +177,7 @@ export function AudienceBridgeScreen({ format, onBack, onStart }: Props) {
             );
           })}
           <div className="relative z-10">
-            <Avatar emoji={CREATOR.emoji} hue={12} size={76} ring />
+            <Avatar emoji={creator.emoji} hue={12} size={76} ring />
             <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded bg-tt-pink px-1.5 py-[1px] text-[9px] font-black tracking-wider">
               LIVE
             </span>
@@ -172,7 +229,7 @@ export function AudienceBridgeScreen({ format, onBack, onStart }: Props) {
               ) : (
                 <>
                   Se estima que <b className="text-white/90">una parte</b> de los ~
-                  {compact(VIRAL_VIDEO.watchingNow)} usuarios viendo tu video se
+                  {compact(viralVideo.watchingNow)} usuarios viendo tu video se
                   unan. El número final puede variar · preparando tu sala…
                 </>
               )}
@@ -195,11 +252,9 @@ export function AudienceBridgeScreen({ format, onBack, onStart }: Props) {
                 <BellRing size={12} className="text-white/40" />
               </div>
               <p className="text-[13px] font-bold leading-tight">
-                🔴 {CREATOR.handle} está EN VIVO
+                🔴 {creator.handle} está EN VIVO
               </p>
-              <p className="truncate text-[12px] text-white/65">
-                La pasta del video que acabas de ver… ¡en vivo! 🍝
-              </p>
+              <p className="truncate text-[12px] text-white/65">{bridgeTeaser}</p>
             </div>
           </div>
         </motion.div>
@@ -249,7 +304,7 @@ export function AudienceBridgeScreen({ format, onBack, onStart }: Props) {
         </div>
       </div>
 
-      {/* CTA */}
+      {/* CTA: abre el aviso de normas comunitarias antes de la cuenta regresiva */}
       <div className="px-4 pb-7">
         <AnimatePresence>
           {ready && (
@@ -257,7 +312,7 @@ export function AudienceBridgeScreen({ format, onBack, onStart }: Props) {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => setCountdown(3)}
+              onClick={() => setGuidelinesOpen(true)}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-tt-pink text-[15px] font-bold shadow-[0_8px_30px_rgba(254,44,85,0.45)]"
             >
               <Radio size={18} /> Iniciar LIVE · {dots(count)} notificados
@@ -292,7 +347,7 @@ export function AudienceBridgeScreen({ format, onBack, onStart }: Props) {
                 Podrá silenciar spam y fijar comentarios mientras tú cocinas
               </p>
               <div className="flex flex-col gap-1.5">
-                {MOD_CANDIDATES.map((c) => {
+                {modCandidates.map((c) => {
                   const active = moderator?.handle === c.handle;
                   return (
                     <button
@@ -329,6 +384,82 @@ export function AudienceBridgeScreen({ format, onBack, onStart }: Props) {
                     </button>
                   );
                 })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Aviso obligatorio de normas comunitarias: debe aceptarse antes de
+          que arranque la cuenta regresiva 3-2-1. */}
+      <AnimatePresence>
+        {guidelinesOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-black/80 backdrop-blur-[3px]"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 280 }}
+              className="absolute inset-x-0 bottom-0 z-50 flex max-h-[88%] flex-col rounded-t-3xl border-t border-amber-400/25 bg-zinc-950 px-5 pb-7 pt-3"
+            >
+              <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-white/25" />
+
+              <div className="flex flex-col items-center pb-1 pt-1">
+                <span className="flex size-14 items-center justify-center rounded-full bg-amber-400/12 ring-1 ring-amber-400/30">
+                  <ShieldAlert size={26} className="text-amber-400" />
+                </span>
+                <h2 className="mt-3 text-center text-[19px] font-black leading-tight">
+                  Antes de hacer LIVE
+                </h2>
+              </div>
+
+              <div className="mt-4 flex-1 overflow-y-auto">
+                <div className="flex flex-col gap-2.5">
+                  {LIVE_GUIDELINES.map((g, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/5 px-3.5 py-3"
+                    >
+                      <span className="mt-[1px] flex size-7 shrink-0 items-center justify-center rounded-full bg-black/40">
+                        {g.icon}
+                      </span>
+                      <p className="text-[13px] font-semibold leading-snug text-white/90">
+                        {g.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-4 flex items-start gap-2 rounded-2xl bg-red-500/10 px-3.5 py-3 text-[11.5px] leading-snug text-red-300/90">
+                  <AlertTriangle size={14} className="mt-[1px] shrink-0" />
+                  Incumplir estas reglas puede resultar en una advertencia, la
+                  interrupción del LIVE o restricciones en tu cuenta.
+                </p>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    setGuidelinesOpen(false);
+                    setCountdown(3);
+                  }}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-tt-pink text-[15px] font-bold shadow-[0_8px_30px_rgba(254,44,85,0.4)]"
+                >
+                  <Check size={18} /> Entendido, ir LIVE
+                </motion.button>
+                <button
+                  onClick={() => setGuidelinesOpen(false)}
+                  className="py-1 text-center text-[13px] font-semibold text-white/50"
+                >
+                  Cancelar
+                </button>
               </div>
             </motion.div>
           </>

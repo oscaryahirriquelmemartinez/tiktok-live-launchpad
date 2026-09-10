@@ -2,13 +2,16 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, ChevronLeft, ChevronRight, Loader2, Zap } from "lucide-react";
 import { StatusBar } from "@/components/chrome";
-import { RUNSHEET_FORMATS, RunsheetFormat, VIRAL_VIDEO } from "@/lib/data";
+import { RunsheetFormat, ViralVideo } from "@/lib/tiktok-sdk";
+import { useLiveStore } from "@/lib/store";
 
 type Props = {
+  viralVideo: ViralVideo;
+  defaultFormats: RunsheetFormat[];
   selected: RunsheetFormat | null;
   onSelect: (f: RunsheetFormat) => void;
   onBack: () => void;
@@ -21,13 +24,73 @@ const ANALYSIS_STEPS = [
   { doneAt: 2100, label: "Eligiendo formatos con mejor retención" },
 ];
 
-export function RunsheetScreen({ selected, onSelect, onBack, onContinue }: Props) {
+/** Valida a grandes rasgos la forma esperada de un RunsheetFormat generado por IA. */
+function isValidFormats(v: unknown): v is RunsheetFormat[] {
+  return (
+    Array.isArray(v) &&
+    v.length === 3 &&
+    v.every(
+      (f) =>
+        f &&
+        typeof f.id === "string" &&
+        typeof f.title === "string" &&
+        Array.isArray(f.steps) &&
+        f.steps.length > 0
+    )
+  );
+}
+
+export function RunsheetScreen({ viralVideo, defaultFormats, selected, onSelect, onBack, onContinue }: Props) {
+  const activeVertical = useLiveStore((s) => s.activeVertical);
   const [elapsed, setElapsed] = useState(0);
+  // Arranca con los mocks locales (del SDK); si la generación por IA responde
+  // a tiempo y con datos válidos, los reemplaza. Si falla o no hay API key,
+  // se queda con los mocks sin mostrar ningún error al creador.
+  const [formats, setFormats] = useState<RunsheetFormat[]>(defaultFormats);
+  const fetchedRef = useRef(false);
   const ready = elapsed >= 2500;
 
   useEffect(() => {
     const id = setInterval(() => setElapsed((t) => t + 100), 100);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/generate-runsheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vertical: activeVertical,
+            caption: viralVideo.caption,
+            hashtags: viralVideo.hashtags,
+            views: viralVideo.views,
+            comments: viralVideo.comments,
+            multiplier: viralVideo.multiplier,
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) return; // se queda con los mocks
+        const data = await res.json();
+        if (data.ok && isValidFormats(data.formats)) setFormats(data.formats);
+      } catch {
+        // Fetch fallido, timeout o sin API key: silencioso, mocks locales.
+      } finally {
+        clearTimeout(timeout);
+      }
+    })();
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -61,7 +124,7 @@ export function RunsheetScreen({ selected, onSelect, onBack, onContinue }: Props
             )}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold">{VIRAL_VIDEO.caption}</p>
+            <p className="truncate text-[13px] font-semibold">{viralVideo.caption}</p>
             <p className="text-[12px] text-white/50">
               412.8K vistas · 12× tu promedio · en pico ahora
             </p>
@@ -110,7 +173,7 @@ export function RunsheetScreen({ selected, onSelect, onBack, onContinue }: Props
                 3 formatos generados desde tu video. Elige uno para empezar.
               </p>
               <div className="flex flex-col gap-3">
-                {RUNSHEET_FORMATS.map((f, i) => (
+                {formats.map((f, i) => (
                   <FormatCard
                     key={f.id}
                     format={f}

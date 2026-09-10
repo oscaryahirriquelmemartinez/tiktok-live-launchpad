@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  COPILOT_CUES,
+  ChatEvent,
   COPILOT_FIRST_DELAY_MS,
   COPILOT_INTERVAL_MS,
   CopilotCue,
-} from "@/lib/data";
+  randomInt,
+  ViewerChannel,
+} from "@/lib/tiktok-sdk";
 
 /** Contador animado con easing (rAF). Arranca al montar o al cambiar target. */
 export function useCountUp(target: number, durationMs = 1200): number {
@@ -52,6 +54,7 @@ export function useInterval(callback: () => void, delay: number | null) {
  * categorías silenciadas (opt-out) y las marcadas en `skip` (estado de sala).
  */
 export function useCopilotMessages(opts: {
+  cues: CopilotCue[];
   muted: CopilotCue["id"][];
   skip?: Partial<Record<CopilotCue["id"], boolean>>;
   autoHideMs?: number;
@@ -70,9 +73,9 @@ export function useCopilotMessages(opts: {
 
   useEffect(() => {
     emitRef.current = () => {
-      const { muted, skip } = optsRef.current;
-      for (let n = 0; n < COPILOT_CUES.length; n++) {
-        const next = COPILOT_CUES[queueRef.current % COPILOT_CUES.length];
+      const { cues, muted, skip } = optsRef.current;
+      for (let n = 0; n < cues.length; n++) {
+        const next = cues[queueRef.current % cues.length];
         queueRef.current += 1;
         if (muted.includes(next.id) || skip?.[next.id]) continue;
         setCue(next);
@@ -99,5 +102,90 @@ export function useCopilotMessages(opts: {
     return () => clearTimeout(t);
   }, [cue, cueSeq, autoHideMs]);
 
-  return { cue, cueSeq, dismiss: () => setCue(null) };
+  return {
+    cue,
+    cueSeq,
+    dismiss: () => setCue(null),
+    /** Fuerza la siguiente sugerencia de la cola ahora mismo (usado por God Mode). */
+    trigger: () => emitRef.current(),
+  };
+}
+
+/**
+ * Motor de chat orgánico: en vez de un `setInterval` con cadencia fija,
+ * agenda el siguiente mensaje con un retardo aleatorio (`minDelayMs`–
+ * `maxDelayMs`) y de vez en cuando ("ráfagas") suelta 3-5 mensajes de golpe
+ * para simular picos de emoción reales de un LIVE viral.
+ *
+ * Los eventos se piden a un `ViewerChannel` ya conectado (`TikTokSDK.Viewer
+ * .connect()`), no a `lib/data.ts` directamente — la capa de datos queda
+ * detrás del adaptador del SDK. El propio `next()`/`surge()` del canal no
+ * tiene latencia añadida (solo el `connect()` inicial la paga, como un
+ * WebSocket real), así que este hook sigue sin hacer fetch ni trabajo
+ * pesado dentro de su bucle: solo pide eventos ya generados y llama
+ * `onEvent`. Si el canal todavía no conectó (`channel === null`), el motor
+ * sigue agendando pero no emite nada, para no bloquear el timing.
+ */
+export function useOrganicChat(opts: {
+  channel: ViewerChannel | null;
+  onEvent: (ev: ChatEvent) => void;
+  minDelayMs?: number;
+  maxDelayMs?: number;
+  burstChance?: number;
+  paused?: boolean;
+}) {
+  const { minDelayMs = 50, maxDelayMs = 600, burstChance = 0.12, paused = false } = opts;
+  const onEventRef = useRef(opts.onEvent);
+  const channelRef = useRef(opts.channel);
+  const pausedRef = useRef(paused);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    onEventRef.current = opts.onEvent;
+  }, [opts.onEvent]);
+  useEffect(() => {
+    channelRef.current = opts.channel;
+  }, [opts.channel]);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  useEffect(() => {
+    let active = true;
+
+    const scheduleNext = () => {
+      const delay = randomInt(minDelayMs, maxDelayMs);
+      timeoutRef.current = setTimeout(() => {
+        if (!active) return;
+        const channel = channelRef.current;
+        if (!pausedRef.current && channel) {
+          const isBurst = Math.random() < burstChance;
+          const count = isBurst ? randomInt(3, 5) : 1;
+          for (let i = 0; i < count; i++) onEventRef.current(channel.next());
+        }
+        scheduleNext();
+      }, delay);
+    };
+
+    scheduleNext();
+    return () => {
+      active = false;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [minDelayMs, maxDelayMs, burstChance]);
+
+  /** Inyecta `count` mensajes espaciados en ~1 s (usado por God Mode: Viral Surge). */
+  const surge = useCallback((count = 15, windowMs = 1000) => {
+    const channel = channelRef.current;
+    if (!channel) return;
+    const step = Math.max(20, Math.floor(windowMs / count));
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => {
+        const c = channelRef.current;
+        if (c) onEventRef.current(c.next());
+      }, i * step);
+    }
+  }, []);
+
+  return { surge };
 }
