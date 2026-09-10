@@ -259,6 +259,29 @@ export function AudienceBridgeScreen({ creator, viralVideo, format, onBack, onSt
           </div>
         </motion.div>
 
+        {/* ⚠️ Aviso obligatorio de normas comunitarias — visible siempre en la pantalla */}
+        <div className="mt-3 w-full rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-3.5 backdrop-blur">
+          <div className="mb-2 flex items-center gap-2">
+            <ShieldAlert size={15} className="text-amber-400" />
+            <h3 className="text-[12.5px] font-black uppercase tracking-wide text-amber-300">
+              Antes de hacer LIVE
+            </h3>
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {LIVE_GUIDELINES.map((g, i) => (
+              <li key={i} className="flex items-start gap-2 text-[11.5px] leading-snug text-white/85">
+                <span className="mt-[1px] shrink-0">{g.icon}</span>
+                <span className="font-medium">{g.text}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2.5 flex items-start gap-1.5 text-[10.5px] leading-snug text-red-300/85">
+            <AlertTriangle size={11} className="mt-[1px] shrink-0" />
+            Incumplir estas reglas puede resultar en una advertencia, la
+            interrupción del LIVE o restricciones en tu cuenta.
+          </p>
+        </div>
+
         {/* Panel de configuración Pre-LIVE */}
         <div className="mt-3 w-full divide-y divide-white/8 rounded-2xl border border-white/10 bg-white/8 backdrop-blur">
           <div className="flex items-center gap-2.5 px-3.5 py-2.5">
