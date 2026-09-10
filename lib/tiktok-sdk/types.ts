@@ -5,7 +5,7 @@
 // adaptador que expone estos tipos con latencia de red simulada.
 // ---------------------------------------------------------------------------
 
-export type VerticalId = "beauty" | "fashion" | "food" | "diy" | "electronics";
+export type VerticalId = "food";
 
 export type Creator = {
   handle: string;
